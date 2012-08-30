@@ -8,6 +8,8 @@ import matplotlib.mlab as mlab
 import scipy.signal as signal
 
 from scikits.audiolab import Format, Sndfile
+from matplotlib import rc
+from matplotlib.pyplot import plot, axis, subplot, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold
 
 
 def analyze(filename):
@@ -27,7 +29,7 @@ def analyze(filename):
 	#print data[fs*2]
 	#print data[fs*2,1]
 
-	data_rms = rms(data) # [np.sqrt(np.mean(data[0]**2)), np.sqrt(np.mean(data[1]**2))]
+	data_rms = rms(data, 1) # [np.sqrt(np.mean(data[0]**2)), np.sqrt(np.mean(data[1]**2))]
 	data_peak = np.abs(data).max(1)
 	#plt.plot(data)
 	#plt.show()
@@ -85,6 +87,12 @@ def analyze(filename):
 				f_max = e
 	print c_max, nf_max, f_max, f_max/float(fs)
 
+	w_max = (f_max - window, f_max + window)
+	if w_max[0] < 0:
+		w_max = (0, window*2)
+	if w_max[1] > nf:
+		w_max = (nf - window*2, nf)
+
 	#peaks = (np.abs(data) > 0.05*peak)
 	#print np.sum(rolling_window(peaks, window), -1).max()
 
@@ -92,12 +100,13 @@ def analyze(filename):
 	print nf/float(fs)
 	frames = nf/fs
 	wfunc = np.blackman(fs)
-	norm_spec = np.zeros(fs)
+	norm_spec = np.zeros((nc,fs))
 	tmp = np.zeros(fs)
-	for i in np.arange(0, frames*fs, fs):
-		#norm_spec += np.abs(np.fft.fft(np.multiply(data[0,i:i+fs], wfunc), fs))
-		tmp = np.abs(np.fft.fft(np.multiply(data[0,i:i+fs], wfunc), fs))
-		norm_spec += 20*np.log10(tmp/tmp.max())
+	for c in range(nc):
+		for i in np.arange(0, frames*fs, fs):
+			#norm_spec += np.abs(np.fft.fft(np.multiply(data[0,i:i+fs], wfunc), fs))
+			tmp = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
+			norm_spec[c] += 20*np.log10(tmp/tmp.max())
 	norm_spec /= frames
 	#plt.plot(20*np.log10(norm_spec[np.arange(fs/2)]/norm_spec.max()))
 	#plt.show()
@@ -133,14 +142,15 @@ def analyze(filename):
 		b, a = allpass(fc, fs)
 		y = signal.lfilter(b, a, data, 1)
 		ap_peak[i] = y.max(1)
-		ap_rms[i] = rms(y)
+		ap_rms[i] = rms(y, 1)
 		ap_crest[i] = db(ap_peak[i], ap_rms[i])
-	print ap_crest
+	print 'AP Crest', ap_crest
 
 	# Histogram
-	hist = np.zeros(nc*2**16).reshape(nc, 2**16)
+	hist = np.zeros((nc, 2**16))
+	hist_bins = np.zeros((nc, 2**16+1))
 	for c in range(nc):
-		hist[c], tmp = np.histogram(data[c], bins=2**16, range=(-1.0, 1.0))
+		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**16, range=(-1.0, 1.0))
 	print hist.shape
 	hist_bits = np.log2((hist > 0).sum(1))
 	print hist_bits
@@ -148,13 +158,95 @@ def analyze(filename):
 
 	# Peak vs RMS
 	n_1s = int(np.ceil(nf/float(fs)))
-	data_1s_peak = np.zeros((nc, n_1s))
-	data_1s_rms = np.zeros((nc, n_1s))
-	data_1s_crest = np.zeros((nc, n_1s))
+	peak_1s_dbfs = np.zeros((nc, n_1s))
+	rms_1s_dbfs = np.zeros((nc, n_1s))
+	crest_1s_db = np.zeros((nc, n_1s))
 	print n_1s
+	for c in range(nc):
+		for i in range(n_1s):
+			a = data[c,i*fs:(i+1)*fs].max()
+			b = rms(data[c,i*fs:(i+1)*fs])
+			peak_1s_dbfs[c][i] = db(a, 1.0)
+			rms_1s_dbfs[c][i] = db(b, 1.0)
+			crest_1s_db[c][i] = db(a, b)
 
-def rms(data):
-	return np.sqrt((data**2).mean(1))
+	print peak_1s_dbfs
+	print rms_1s_dbfs
+	print crest_1s_db
+
+
+	#
+	# Plot
+	#
+	c_color = ['b', 'r']
+	c_name = ['left', 'right']
+
+
+
+	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white')
+	fig.suptitle('PyMasVis')
+
+	rc('lines', linewidth=0.5, antialiased=False)
+
+	# Left channel
+	subplot(4,2,1)
+	plot(np.arange(nf), data[0], 'b-', rasterized=True, lod=True)
+	xlim(0, nf)
+	ylim(-1.0, 1.0)
+	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small')
+
+	# Right channel
+	subplot(4,2,2)
+	plot(np.arange(nf), data[1], 'r-', rasterized=True, lod=True)
+	xlim(0, nf)
+	ylim(-1.0, 1.0)
+	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small')
+
+	# Loudest
+	subplot(4,2,3)
+	plot(np.arange(*w_max), data[c_max][np.arange(*w_max)], c_color[c_max], rasterized=True, lod=True)
+	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small')
+
+	# Normalized
+	subplot(4,2,4)
+	semilogx(np.arange(0,fs/2), norm_spec[0,0:fs/2], 'b-', basex=10, rasterized=True, lod=True)
+	#hold()
+	semilogx(np.arange(0,fs/2), norm_spec[1,0:fs/2], 'r-', basex=10, rasterized=True, lod=True)
+	ylim(-90, 0)
+
+	# Allpass
+	subplot(4,2,5)
+	semilogx(ap_freqs, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10, rasterized=True, lod=True)
+	#hold()
+	semilogx(ap_freqs, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs, ap_crest.swapaxes(0,1)[0], 'b-', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs, ap_crest.swapaxes(0,1)[1], 'r-', basex=10, rasterized=True, lod=True)
+	ylim(0,30)
+	xlim(0, ap_freqs[-1])
+
+	# Histogram
+	subplot(4,2,6)
+	print hist.shape
+	semilogy(np.arange(2**16), hist[0], 'b-', basey=10, rasterized=True, lod=True, drawstyle='step-mid')
+	#hold()
+	semilogy(np.arange(2**16), hist[1], 'r-', basey=10, rasterized=True, lod=True, drawstyle='step-mid')
+	xlim(-1.1, 1.1)
+	ylim(0,50000)
+	xticks([0, 2**15, 2**16], [-1, 0, 1])
+
+
+	# Peak vs RMS
+	subplot(4,2,7)
+	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', rasterized=True, lod=True)
+	#hold()
+	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', rasterized=True, lod=True)
+	xlim(-50, 0)
+	ylim(-50, 0)
+
+	plt.show()
+
+def rms(data, axis = 0):
+	return np.sqrt((data**2).mean(axis))
 
 def db(a, b):
 	return 20*np.log10(np.divide(a, b))
