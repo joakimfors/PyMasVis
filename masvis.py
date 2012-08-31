@@ -102,13 +102,24 @@ def analyze(filename):
 	frames = nf/fs
 	wfunc = np.blackman(fs)
 	norm_spec = np.zeros((nc,fs))
+	X = np.zeros((nc, frames, fs))
 	tmp = np.zeros(fs)
 	for c in range(nc):
 		for i in np.arange(0, frames*fs, fs):
 			#norm_spec += np.abs(np.fft.fft(np.multiply(data[0,i:i+fs], wfunc), fs))
-			tmp = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
-			norm_spec[c] += 20*np.log10(tmp/tmp.max())
-	norm_spec /= frames
+			#tmp = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
+			#p = (data[c,i:i+fs]**2).sum()
+			X[c][i/fs] = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
+			#P = (X[c][i/fs]**2).sum()
+			#print "powah", p, P
+			#norm_spec[c] += 20*np.log10(tmp/tmp.max())
+		X_max = X[c].max()
+		norm_spec[c] = 20*np.log10(X[c]/X_max).mean(0)
+		#norm_spec[c] = 20*np.log10(X[c]/np.sqrt(fs)).mean(0)
+	#print 'X fft max/ch', X.max(1)
+	#print 'X fft max/ch', X.max(1).max(1)
+	#X_max = X.max(1).max(1)
+	#norm_spec = 20*np.log10(tmp/X_max)
 	#plt.plot(20*np.log10(norm_spec[np.arange(fs/2)]/norm_spec.max()))
 	#plt.show()
 	#plt.semilogx(np.arange(fs/2), norm_spec[0:fs/2], basex=10)
