@@ -32,7 +32,7 @@ from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 
-VERSION="0.0.1"
+VERSION="0.0.2"
 
 def analyze(filename):
 	f = Sndfile(filename, 'r')
@@ -232,8 +232,9 @@ def analyze(filename):
 	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.04, top=0.94)
 
 	data_d = signal.decimate(data, 18, n=1, ftype='iir', axis=1)
+	print 'Downsampled length', len(data_d[0])
 	fs_d = fs/18
-	nf_d = nf/18
+	nf_d = len(data_d[0])
 
 	# Left channel
 	ax_lch = subplot(gs[0,:]) #subplot(4,2,1)
