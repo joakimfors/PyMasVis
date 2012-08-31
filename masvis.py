@@ -8,9 +8,10 @@ import matplotlib.mlab as mlab
 import scipy.signal as signal
 
 from scikits.audiolab import Format, Sndfile
-from matplotlib import rc
-from matplotlib.pyplot import plot, axis, subplot, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold
+from matplotlib import rc, gridspec
+from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout
 
+VERSION="0.0.1"
 
 def analyze(filename):
 	f = Sndfile(filename, 'r')
@@ -87,11 +88,11 @@ def analyze(filename):
 				f_max = e
 	print c_max, nf_max, f_max, f_max/float(fs)
 
-	w_max = (f_max - window, f_max + window)
+	w_max = (f_max - fs/20, f_max + fs/20)
 	if w_max[0] < 0:
-		w_max = (0, window*2)
+		w_max = (0, fs/10)
 	if w_max[1] > nf:
-		w_max = (nf - window*2, nf)
+		w_max = (nf - fs/10, nf)
 
 	#peaks = (np.abs(data) > 0.05*peak)
 	#print np.sum(rolling_window(peaks, window), -1).max()
@@ -114,7 +115,7 @@ def analyze(filename):
 	#plt.show()
 
 	# Allpass
-	ap_freqs = [20, 60, 200, 600, 2000, 20000]
+	ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
 	ap_crest = np.zeros((len(ap_freqs),nc))
 	ap_rms = np.zeros((len(ap_freqs),nc))
 	ap_peak = np.zeros((len(ap_freqs),nc))
@@ -157,7 +158,7 @@ def analyze(filename):
 
 
 	# Peak vs RMS
-	n_1s = int(np.ceil(nf/float(fs)))
+	n_1s = nf/fs
 	peak_1s_dbfs = np.zeros((nc, n_1s))
 	rms_1s_dbfs = np.zeros((nc, n_1s))
 	crest_1s_db = np.zeros((nc, n_1s))
@@ -184,66 +185,205 @@ def analyze(filename):
 
 
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white')
-	fig.suptitle('PyMasVis')
+	fig.suptitle('PyMasVis %s' % (VERSION))
 
-	rc('lines', linewidth=0.5, antialiased=False)
+	rc('lines', linewidth=0.5, antialiased=True)
+
+	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.03, top=0.92)
+
+	data_d = signal.decimate(data, 18, n=1, ftype='iir', axis=1)
+	fs_d = fs/18
+	nf_d = nf/18
 
 	# Left channel
-	subplot(4,2,1)
-	plot(np.arange(nf), data[0], 'b-', rasterized=True, lod=True)
-	xlim(0, nf)
+	ax_lch = subplot(gs[0,:]) #subplot(4,2,1)
+	#simplify(plot(np.arange(nf)/float(fs), data[0], 'b-', rasterized=True, lod=True))
+	#xlim(0, nf/fs)
+	simplify(plot(np.arange(nf_d)/float(fs_d), data_d[0], 'b-', rasterized=True, lod=True))
+	xlim(0, nf_d/fs_d)
 	ylim(-1.0, 1.0)
 	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small')
+	setp(ax_lch.get_xticklabels(), visible=False)
+	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 
 	# Right channel
-	subplot(4,2,2)
-	plot(np.arange(nf), data[1], 'r-', rasterized=True, lod=True)
-	xlim(0, nf)
+	ax_rch = subplot(gs[1,:], sharex=ax_lch)
+	#simplify(plot(np.arange(nf)/float(fs), data[1], 'r-', rasterized=True, lod=True))
+	#xlim(0, nf/fs)
+	simplify(plot(np.arange(nf_d)/float(fs_d), data_d[1], 'r-', rasterized=True, lod=True))
+	xlim(0, nf_d/fs_d)
 	ylim(-1.0, 1.0)
 	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small')
+	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+	ax_rch.get_xticklabels()[-1].set_visible(False)
+	xlabel('s', fontsize='small')
+
+	axis_defaults(ax_lch)
+	axis_defaults(ax_rch)
 
 	# Loudest
-	subplot(4,2,3)
-	plot(np.arange(*w_max), data[c_max][np.arange(*w_max)], c_color[c_max], rasterized=True, lod=True)
+	ax_max = subplot(gs[2,:])
+	simplify(plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max], lod=True))
+	ylim(-1.0, 1.0)
+	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
 	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small')
+	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+	ax_max.get_xticklabels()[-1].set_visible(False)
+	xlabel('s', fontsize='small')
+
+	#print ax_max.get_xaxis_text1_transform()
+	#for label in ax_max.get_xmajorticklabels():
+	#	print 'tick pos', ax_max.labelpad #label.get_text(), label._pad
+
+	axis_defaults(ax_max)
 
 	# Normalized
-	subplot(4,2,4)
-	semilogx(np.arange(0,fs/2), norm_spec[0,0:fs/2], 'b-', basex=10, rasterized=True, lod=True)
-	#hold()
-	semilogx(np.arange(0,fs/2), norm_spec[1,0:fs/2], 'r-', basex=10, rasterized=True, lod=True)
-	ylim(-90, 0)
+	ax_norm = subplot(gs[3,0])
+	semilogx(
+		[0.02, 0.06], [-80, -90], 'k-',
+		[0.02,  0.2], [-70, -90], 'k-',
+		[0.02,  0.6], [-60, -90], 'k-',
+		[0.02,  2  ], [-50, -90], 'k-',
+		[0.02,  6  ], [-40, -90], 'k-',
+		[0.02, 20  ], [-30, -90], 'k-',
+		[0.02, 20  ], [-20, -80], 'k-',
+		[0.02, 20  ], [-10, -70], 'k-',
+		[0.06, 20  ], [-10, -60], 'k-',
+		[0.2 , 20  ], [-10, -50], 'k-',
+		[0.6 , 20  ], [-10, -40], 'k-',
+		[2   , 20  ], [-10, -30], 'k-',
+		[6   , 20  ], [-10, -20], 'k-',
+		basex=10
+	)
+	simplify(semilogx(np.arange(0,fs/2.0)/1000, norm_spec[0,0:fs/2], 'b-', basex=10, lod=True))
+	simplify(semilogx(np.arange(0,fs/2.0)/1000, norm_spec[1,0:fs/2], 'r-', basex=10, lod=True))
+	ylim(-90, -10)
+	#xlim(0.02, (fs/2.0)/1000)
+	xlim(0.02, 20)
+	ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+	ax_norm.xaxis.grid(True, which='both', linestyle='-', color='k', linewidth=0.5)
+	ylabel('dB', fontsize='small', verticalalignment='top', rotation=0)
+	xlabel('kHz', fontsize='small', horizontalalignment='right')
+	title("Normalized average spectrum, %d frames" % (frames), fontsize='small')
+	#ax_norm.ticklabel_format(axis='x', style='plain')
+	ax_norm.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
+	ax_norm.set_xticks([0.03, 0.04, 0.06, 0.07, 0.08, 0.09, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 6, 8, 9, 10], minor=True)
+	ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7])
+	yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', 'dB'))
+
+	axis_defaults(ax_norm)
+
+
 
 	# Allpass
-	subplot(4,2,5)
-	semilogx(ap_freqs, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10, rasterized=True, lod=True)
-	#hold()
-	semilogx(ap_freqs, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10, rasterized=True, lod=True)
-	semilogx(ap_freqs, ap_crest.swapaxes(0,1)[0], 'b-', basex=10, rasterized=True, lod=True)
-	semilogx(ap_freqs, ap_crest.swapaxes(0,1)[1], 'r-', basex=10, rasterized=True, lod=True)
+	ax_ap = subplot(gs[3,1])
+	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10, rasterized=True, lod=True)
 	ylim(0,30)
-	xlim(0, ap_freqs[-1])
+	xlim(0.02, 20)
+	title("Allpassed crest factor", fontsize='small')
+	yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, ''))
+	xlabel('kHz', fontsize='small')
+	ylabel('dB', fontsize='small', rotation=0)
+	ax_ap.set_xticklabels([0, 0.1, 1], minor=False)
+	xt = np.repeat([''], 17)
+	xt[-1] = 2
+	ax_ap.set_xticklabels(xt, minor=True)
+
+	axis_defaults(ax_ap)
 
 	# Histogram
-	subplot(4,2,6)
+	ax_hist = subplot(gs[4,0])
 	print hist.shape
-	semilogy(np.arange(2**16), hist[0], 'b-', basey=10, rasterized=True, lod=True, drawstyle='step-mid')
-	#hold()
-	semilogy(np.arange(2**16), hist[1], 'r-', basey=10, rasterized=True, lod=True, drawstyle='step-mid')
+	simplify(semilogy(np.arange(2**16)/2.0**15-1.0, hist[0], 'b-', basey=10, rasterized=True, lod=True, drawstyle='step-mid'))
+	simplify(semilogy(np.arange(2**16)/2.0**15-1.0, hist[1], 'r-', basey=10, rasterized=True, lod=True, drawstyle='step-mid'))
 	xlim(-1.1, 1.1)
 	ylim(0,50000)
-	xticks([0, 2**15, 2**16], [-1, 0, 1])
+	#xticks([0, 2**15, 2**16], [-1, 0, 1])
+	xticks(np.arange(-1.0, 1.2, 0.2))
+	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small')
+	ylabel('n', fontsize='small', rotation=0)
+	ax_hist.set_yticklabels(('', 10, 100, 1000), minor=False)
 
+	axis_defaults(ax_hist)
 
 	# Peak vs RMS
-	subplot(4,2,7)
+	ax_pr = subplot(gs[4,1])
+	plot(
+		[-50,    0], [-50, 0], 'k-',
+		[-50,  -10], [-40, 0], 'k-',
+		[-50,  -20], [-30, 0], 'k-',
+		[-50,  -30], [-20, 0], 'k-',
+		[-50,  -40], [-10, 0], 'k-',
+	)
 	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', rasterized=True, lod=True)
-	#hold()
 	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', rasterized=True, lod=True)
+	text(-48, -45, '0 dB', fontsize='x-small', rotation=45, va='bottom', ha='left')
+	text(-48, -35, '10', fontsize='x-small', rotation=45, va='bottom', ha='left')
+	text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
+	text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
+	text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	xlim(-50, 0)
 	ylim(-50, 0)
+	title("Peak vs RMS level", fontsize='small')
+	xlabel('dBFS', fontsize='small')
+	ylabel('dBFS', fontsize='small', rotation=0)
+	xticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, '', ''))
+	yticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, -10, ''))
+
+	axis_defaults(ax_pr)
+
+	# Shortterm crest
+	ax_1s = subplot(gs[5,:])
+	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo')
+	plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro')
+	ylim(0,30)
+	xlim(0,n_1s)
+	yticks([10, 20], (10,))
+	ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+	title("Short term (1 s) crest factor", fontsize='small')
+	xlabel('s', fontsize='small')
+	ylabel('dB', fontsize='small', rotation=0)
+	ax_1s.get_xticklabels()[-1].set_visible(False)
+
+	axis_defaults(ax_1s)
 
 	plt.show()
+
+def simplify(paths):
+	for p in paths:
+		path = p.get_path()
+		transform = p.get_transform()
+		path = transform.transform_path(path)
+		#simplified = list(path.iter_segments(simplify=(800, 600)))
+		simplified = list(path.iter_segments(simplify=True))
+		print "Original length: %d, simplified length: %d" % (len(path.vertices), len(simplified))
+
+def axis_defaults(ax):
+	ax.tick_params(axis='both', which='major', labelsize='small')
+	ax.tick_params(axis='both', which='minor', labelsize='small')
+	"""for tick in ax.axis.get_major_ticks():
+		tick.label.set_fontsize('small')
+		# specify integer or one of preset strings, e.g.
+		#tick.label.set_fontsize('x-small')
+		tick.label.set_rotation('vertical')"""
+	xpad = ax.xaxis.labelpad
+	ypad = ax.yaxis.labelpad
+	xpos = ax.transAxes.transform((1.0, 0.0))
+	xpos[1] -= xpad
+	xpos = ax.transAxes.inverted().transform(xpos)
+	ypos = ax.transAxes.transform((0.0, 1.0))
+	ypos[0] -= ypad
+	ypos = ax.transAxes.inverted().transform(ypos)
+	ax.xaxis.set_label_coords(*xpos)
+	ax.yaxis.set_label_coords(*ypos)
+	ax.xaxis.get_label().set_ha('right')
+	ax.xaxis.get_label().set_va('top')
+	ax.yaxis.get_label().set_ha('right')
+	ax.yaxis.get_label().set_va('top')
+	print 'foo', ax.transAxes.transform((0.0, 1.0))
 
 def rms(data, axis = 0):
 	return np.sqrt((data**2).mean(axis))
