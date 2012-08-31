@@ -3,13 +3,17 @@ import inspect
 import math
 import numpy as np
 import scipy as sp
+import matplotlib
+matplotlib.use('AGG')
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
+import matplotlib.image as mpimg
 import scipy.signal as signal
 
+from os.path import basename
 from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
-from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout
+from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 
 VERSION="0.0.1"
 
@@ -19,6 +23,8 @@ def analyze(filename):
 	nc = f.channels
 	enc = f.encoding
 	nf = f.nframes
+
+	print basename(filename)
 
 	print "Hz: %d ch: %d enc: %s frames: %d" % (fs, nc, enc, nf)
 	#print inspect.getmembers(f)
@@ -196,11 +202,17 @@ def analyze(filename):
 
 
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white')
-	fig.suptitle('PyMasVis %s' % (VERSION))
+	fig.suptitle(basename(filename), fontweight='bold')
+	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+
+	cc_img = mpimg.imread('cc.png')
+	pd_img = mpimg.imread('pd.png')
+	fig.figimage(cc_img, 16, fig.bbox.ymax - cc_img.shape[1] - 16)
+	fig.figimage(pd_img, 16 + cc_img.shape[0] + 5, fig.bbox.ymax - pd_img.shape[1] - 16)
 
 	rc('lines', linewidth=0.5, antialiased=True)
 
-	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.03, top=0.92)
+	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.04, top=0.94)
 
 	data_d = signal.decimate(data, 18, n=1, ftype='iir', axis=1)
 	fs_d = fs/18
@@ -216,6 +228,8 @@ def analyze(filename):
 	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small')
 	setp(ax_lch.get_xticklabels(), visible=False)
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+	if c_max == 0:
+		mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
 
 	# Right channel
 	ax_rch = subplot(gs[1,:], sharex=ax_lch)
@@ -228,6 +242,10 @@ def analyze(filename):
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 	ax_rch.get_xticklabels()[-1].set_visible(False)
 	xlabel('s', fontsize='small')
+	if c_max == 1:
+		print w_max
+		mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
+
 
 	axis_defaults(ax_lch)
 	axis_defaults(ax_rch)
@@ -361,7 +379,14 @@ def analyze(filename):
 
 	axis_defaults(ax_1s)
 
-	plt.show()
+	#plt.show()
+	out_file = "%s.png" % filename
+	print "Saving analysis to %s" % out_file
+	plt.savefig(out_file, format='png', dpi=74)
+
+
+def mark_span(ax, span):
+	ax.axvspan(*span, edgecolor='0.5', facecolor='0.98', linestyle='dotted', linewidth=0.5)
 
 def simplify(paths):
 	for p in paths:
