@@ -205,10 +205,10 @@ def analyze(filename):
 	fig.suptitle(basename(filename), fontweight='bold')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 
-	cc_img = mpimg.imread('cc.png')
+	"""cc_img = mpimg.imread('cc.png')
 	pd_img = mpimg.imread('pd.png')
 	fig.figimage(cc_img, 16, fig.bbox.ymax - cc_img.shape[1] - 16)
-	fig.figimage(pd_img, 16 + cc_img.shape[0] + 5, fig.bbox.ymax - pd_img.shape[1] - 16)
+	fig.figimage(pd_img, 16 + cc_img.shape[0] + 5, fig.bbox.ymax - pd_img.shape[1] - 16)"""
 
 	rc('lines', linewidth=0.5, antialiased=True)
 
