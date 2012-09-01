@@ -411,23 +411,26 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
 	minmax = 1
 	if which is 'both':
 		minmax = 2
-	nw = int(pixels)*oversample
-	w = (span[1]-span[0])/nw
+	nw = int(pixels*oversample)
+	w = (span[1]-span[0])/(pixels*oversample)
 	n = nw*minmax
 	y = np.zeros(n)
 	r = np.zeros(n)
 	for i in range(nw):
 		if method is 'linear':
-			j = i*w + span[0]
-			k = j+w + span[0]
+			j = int(np.round(i*w + span[0]))
+			k = int(np.round(j+w + span[0]))
 		elif method is 'log10':
 			# 10.0**(np.arange(513)/512.0*np.log10(22050))
 			a = np.log10(span[1]) - np.log10(span[0])
 			b = np.log10(span[0])
 			#print 'span,a,b', span, a, b
-			j = np.round(10**( i / float(nw) * a + b )) - 1
-			k = np.round(10**( (i+1) / float(nw) * a + b ))
-			#print 'i,j,k', i,j, k
+			j = int(np.round(10**( i / float(nw) * a + b )) - 1)
+			k = int(np.round(10**( (i+1) / float(nw) * a + b )))
+		#print 'i,j,k', i,j, k
+		if i == nw - 1 and k != span[1]:
+			print 'tweak k'
+			k = span[1]
 		r[i] = k
 		if which is 'max':
 			y[i] = x[j:k].max()
@@ -436,7 +439,7 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
 		elif which is 'both':
 			y[i*minmax] = x[j:k].max()
 			y[i*minmax+1] = x[j:k].min()
-	print "pixels %0.2f, input len: %d, output len: %d, sample window %d, samples: %d" % (pixels, len(x), n, w, nw)
+	print "pixels %0.2f, input len: %d, output len: %d, sample window %d, samples: %d, k: %d" % (pixels, len(x), n, w, nw, k)
 	return (y, n, r)
 
 
