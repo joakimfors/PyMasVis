@@ -32,7 +32,7 @@ from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 
-VERSION="0.0.3"
+VERSION="0.1.0"
 
 def analyze(filename):
 	f = Sndfile(filename, 'r')
@@ -40,6 +40,7 @@ def analyze(filename):
 	nc = f.channels
 	enc = f.encoding
 	nf = f.nframes
+	sec = nf/fs
 
 	print basename(filename)
 
@@ -199,7 +200,7 @@ def analyze(filename):
 
 
 
-	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white')
+	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
 	fig.suptitle(basename(filename), fontweight='bold')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 
@@ -219,10 +220,12 @@ def analyze(filename):
 
 	# Left channel
 	ax_lch = subplot(gs[0,:]) #subplot(4,2,1)
-	#simplify(plot(np.arange(nf)/float(fs), data[0], 'b-', rasterized=True, lod=True))
-	#xlim(0, nf/fs)
-	simplify(plot(np.arange(nf_d)/float(fs_d), data_d[0], 'b-', rasterized=True, lod=True))
-	xlim(0, nf_d/fs_d)
+
+	new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
+	new_fs = new_nf/sec
+	new_range = np.arange(0.0, new_nf, 1)/new_fs
+	plot(new_range, new_data, 'b-')
+	xlim(0, sec)
 	ylim(-1.0, 1.0)
 	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small')
 	setp(ax_lch.get_xticklabels(), visible=False)
@@ -230,19 +233,20 @@ def analyze(filename):
 	if c_max == 0:
 		mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
 
+
 	# Right channel
 	ax_rch = subplot(gs[1,:], sharex=ax_lch)
-	#simplify(plot(np.arange(nf)/float(fs), data[1], 'r-', rasterized=True, lod=True))
-	#xlim(0, nf/fs)
-	simplify(plot(np.arange(nf_d)/float(fs_d), data_d[1], 'r-', rasterized=True, lod=True))
-	xlim(0, nf_d/fs_d)
+	new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
+	new_fs = new_nf/sec
+	new_range = np.arange(0.0, new_nf, 1)/new_fs
+	plot(new_range, new_data, 'r-')
+	xlim(0, sec)
 	ylim(-1.0, 1.0)
 	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 	ax_rch.get_xticklabels()[-1].set_visible(False)
 	xlabel('s', fontsize='small')
 	if c_max == 1:
-		print w_max
 		mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
 
 
@@ -251,7 +255,7 @@ def analyze(filename):
 
 	# Loudest
 	ax_max = subplot(gs[2,:])
-	simplify(plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max], lod=True))
+	plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 	ylim(-1.0, 1.0)
 	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
 	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small')
@@ -283,8 +287,10 @@ def analyze(filename):
 		[6   , 20  ], [-10, -20], 'k-',
 		basex=10
 	)
-	simplify(semilogx(np.arange(0,fs/2.0)/1000, norm_spec[0,0:fs/2], 'b-', basex=10, lod=True))
-	simplify(semilogx(np.arange(0,fs/2.0)/1000, norm_spec[1,0:fs/2], 'r-', basex=10, lod=True))
+	new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+	semilogx(new_r/1000, new_spec, 'b-', basex=10)
+	new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+	semilogx(new_r/1000, new_spec, 'r-', basex=10) # must sample log10icaly
 	ylim(-90, -10)
 	#xlim(0.02, (fs/2.0)/1000)
 	xlim(0.02, 20)
@@ -305,10 +311,10 @@ def analyze(filename):
 
 	# Allpass
 	ax_ap = subplot(gs[3,1])
-	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10, rasterized=True, lod=True)
-	semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10, rasterized=True, lod=True)
-	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10, rasterized=True, lod=True)
-	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10, rasterized=True, lod=True)
+	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
+	semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
+	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10)
+	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
 	ylim(0,30)
 	xlim(0.02, 20)
 	title("Allpassed crest factor", fontsize='small')
@@ -324,9 +330,13 @@ def analyze(filename):
 
 	# Histogram
 	ax_hist = subplot(gs[4,0])
-	print hist.shape
-	simplify(semilogy(np.arange(2**16)/2.0**15-1.0, hist[0], 'b-', basey=10, rasterized=True, lod=True, drawstyle='step-mid'))
-	simplify(semilogy(np.arange(2**16)/2.0**15-1.0, hist[1], 'r-', basey=10, rasterized=True, lod=True, drawstyle='step-mid'))
+	#print hist.shape
+	new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
+	new_hist[(new_hist == 1.0)] += 0.5
+	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
+	new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
+	new_hist[(new_hist == 1.0)] += 0.5
+	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
 	xlim(-1.1, 1.1)
 	ylim(0,50000)
 	#xticks([0, 2**15, 2**16], [-1, 0, 1])
@@ -346,8 +356,8 @@ def analyze(filename):
 		[-50,  -30], [-20, 0], 'k-',
 		[-50,  -40], [-10, 0], 'k-',
 	)
-	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', rasterized=True, lod=True)
-	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', rasterized=True, lod=True)
+	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
+	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 	text(-48, -45, '0 dB', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -35, '10', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
@@ -365,8 +375,8 @@ def analyze(filename):
 
 	# Shortterm crest
 	ax_1s = subplot(gs[5,:])
-	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo')
-	plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro')
+	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
+	plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 	ylim(0,30)
 	xlim(0,n_1s)
 	yticks([10, 20], (10,))
@@ -383,9 +393,73 @@ def analyze(filename):
 	print "Saving analysis to %s" % out_file
 	plt.savefig(out_file, format='png', dpi=74)
 
+def xpixels(ax):
+	"""print 'get_position', ax.get_position()
+	print 'transformed', ax.transAxes.transform(ax.get_position())
+	print 'px/axes', ax.transAxes.transform([(0,1),(1,0)]) - ax.transData.transform((0,0))
+	print 'px/unit', ax.transData.transform([(0,1),(1,0)]) - ax.transData.transform((0,0))
+	print 'ax.bbox.bounds', ax.bbox.bounds"""
+	return np.round(ax.bbox.bounds[2])
+	#print 'get_tightbbox', ax.get_tightbbox(matplotlib.backend_bases.RendererBase)
+
+def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
+	if not span:
+		span = (0, len(x))
+		if method is 'log10':
+			span = (1, len(x) + 1)
+	pixels = xpixels(ax)
+	minmax = 1
+	if which is 'both':
+		minmax = 2
+	nw = int(pixels)*oversample
+	w = (span[1]-span[0])/nw
+	n = nw*minmax
+	y = np.zeros(n)
+	r = np.zeros(n)
+	for i in range(nw):
+		if method is 'linear':
+			j = i*w + span[0]
+			k = j+w + span[0]
+		elif method is 'log10':
+			# 10.0**(np.arange(513)/512.0*np.log10(22050))
+			a = np.log10(span[1]) - np.log10(span[0])
+			b = np.log10(span[0])
+			#print 'span,a,b', span, a, b
+			j = np.round(10**( i / float(nw) * a + b )) - 1
+			k = np.round(10**( (i+1) / float(nw) * a + b ))
+			#print 'i,j,k', i,j, k
+		r[i] = k
+		if which is 'max':
+			y[i] = x[j:k].max()
+		elif which is 'min':
+			y[i] = x[j:k].min()
+		elif which is 'both':
+			y[i*minmax] = x[j:k].max()
+			y[i*minmax+1] = x[j:k].min()
+	print "pixels %0.2f, input len: %d, output len: %d, sample window %d, samples: %d" % (pixels, len(x), n, w, nw)
+	return (y, n, r)
+
+
+	"""xp = xpixels(ax_lch)
+	new_frames = int(xp)
+	new_window = nf/new_frames
+	new_sec = len(data[0])/fs
+	new_fs = new_frames/new_sec
+	#new_frames = len(data[0])/new_window
+	new_data = np.zeros(new_frames*2) # *2 as min and max
+	new_range = np.repeat(np.arange(0, new_frames, 1.0)/new_fs, 2)
+	print 'new frames', new_frames, 'new data len', len(new_data), 'new range len', len(new_range), 'new fs', new_fs, 'new window', new_window
+	for i in range(new_frames):
+		ws = i*new_window
+		new_data[i*2] = data[0][ws:ws+new_window].max()
+		new_data[i*2+1] = data[0][ws:ws+new_window].min()
+	print new_range
+	print new_data
+	plot(new_range, new_data, 'b-')
+	xlim(0, new_sec)"""
 
 def mark_span(ax, span):
-	ax.axvspan(*span, edgecolor='0.5', facecolor='0.98', linestyle='dotted', linewidth=0.5)
+	ax.axvspan(*span, edgecolor='0.2', facecolor='0.98', fill=False, linestyle='dotted', linewidth=0.5, zorder=10)
 
 def simplify(paths):
 	for p in paths:
@@ -394,7 +468,7 @@ def simplify(paths):
 		path = transform.transform_path(path)
 		#simplified = list(path.iter_segments(simplify=(800, 600)))
 		simplified = list(path.iter_segments(simplify=True))
-		print "Original length: %d, simplified length: %d" % (len(path.vertices), len(simplified))
+		#print "Original length: %d, simplified length: %d" % (len(path.vertices), len(simplified))
 
 def axis_defaults(ax):
 	ax.tick_params(axis='both', which='major', labelsize='small')
@@ -418,7 +492,7 @@ def axis_defaults(ax):
 	ax.xaxis.get_label().set_va('top')
 	ax.yaxis.get_label().set_ha('right')
 	ax.yaxis.get_label().set_va('top')
-	print 'foo', ax.transAxes.transform((0.0, 1.0))
+	#print 'foo', ax.transAxes.transform((0.0, 1.0))
 
 def rms(data, axis = 0):
 	return np.sqrt((data**2).mean(axis))
