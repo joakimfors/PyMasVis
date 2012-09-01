@@ -32,7 +32,7 @@ from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 
-VERSION="0.0.2"
+VERSION="0.0.3"
 
 def analyze(filename):
 	f = Sndfile(filename, 'r')
@@ -96,7 +96,7 @@ def analyze(filename):
 	c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
 	for c in range(nc):
 		peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
-		print(len(peaks))
+		#print(len(peaks))
 
 		nf_cur = 0
 		#for i, e in zip(range(len(peaks)), peaks):
@@ -121,32 +121,13 @@ def analyze(filename):
 	#print np.sum(rolling_window(peaks, window), -1).max()
 
 	# Spectrum
-	print nf/float(fs)
 	frames = nf/fs
 	wfunc = np.blackman(fs)
 	norm_spec = np.zeros((nc,fs))
-	X = np.zeros((nc, frames, fs))
-	tmp = np.zeros(fs)
 	for c in range(nc):
 		for i in np.arange(0, frames*fs, fs):
-			#norm_spec += np.abs(np.fft.fft(np.multiply(data[0,i:i+fs], wfunc), fs))
-			#tmp = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
-			#p = (data[c,i:i+fs]**2).sum()
-			X[c][i/fs] = np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))
-			#P = (X[c][i/fs]**2).sum()
-			#print "powah", p, P
-			#norm_spec[c] += 20*np.log10(tmp/tmp.max())
-		X_max = X[c].max()
-		norm_spec[c] = 20*np.log10(X[c]/X_max).mean(0)
-		#norm_spec[c] = 20*np.log10(X[c]/np.sqrt(fs)).mean(0)
-	#print 'X fft max/ch', X.max(1)
-	#print 'X fft max/ch', X.max(1).max(1)
-	#X_max = X.max(1).max(1)
-	#norm_spec = 20*np.log10(tmp/X_max)
-	#plt.plot(20*np.log10(norm_spec[np.arange(fs/2)]/norm_spec.max()))
-	#plt.show()
-	#plt.semilogx(np.arange(fs/2), norm_spec[0:fs/2], basex=10)
-	#plt.show()
+			norm_spec[c] += (np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))/fs)**2
+		norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
 
 	# Allpass
 	ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
@@ -186,9 +167,9 @@ def analyze(filename):
 	hist_bins = np.zeros((nc, 2**16+1))
 	for c in range(nc):
 		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**16, range=(-1.0, 1.0))
-	print hist.shape
+	#print hist.shape
 	hist_bits = np.log2((hist > 0).sum(1))
-	print hist_bits
+	#print hist_bits
 
 
 	# Peak vs RMS
@@ -196,7 +177,7 @@ def analyze(filename):
 	peak_1s_dbfs = np.zeros((nc, n_1s))
 	rms_1s_dbfs = np.zeros((nc, n_1s))
 	crest_1s_db = np.zeros((nc, n_1s))
-	print n_1s
+	#print n_1s
 	for c in range(nc):
 		for i in range(n_1s):
 			a = data[c,i*fs:(i+1)*fs].max()
@@ -205,9 +186,9 @@ def analyze(filename):
 			rms_1s_dbfs[c][i] = db(b, 1.0)
 			crest_1s_db[c][i] = db(a, b)
 
-	print peak_1s_dbfs
-	print rms_1s_dbfs
-	print crest_1s_db
+	#print peak_1s_dbfs
+	#print rms_1s_dbfs
+	#print crest_1s_db
 
 
 	#
