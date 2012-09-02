@@ -219,13 +219,17 @@ def analyze(infile, outfile=None, name=None):
 
 	# Histogram
 	print 'Calculating histogram...'
-	hist_bits = 16
-	hist = np.zeros((nc, 2**hist_bits))
-	hist_bins = np.zeros((nc, 2**hist_bits+1))
+	hbits = bits
+	if bits > 16:
+		hbits = 16
+	hist = np.zeros((nc, 2**hbits))
+	hist_bins = np.zeros((nc, 2**hbits+1))
 	for c in range(nc):
-		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**hist_bits, range=(-1.0, 1.0))
+		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**hbits, range=(-1.0, 1.0))
 	#print hist.shape
-	hist_bits = np.log2((hist > 0).sum(1)) * bits / float(hist_bits) # fake but counting 2**24 bins take way too long to be worth it
+	hist_bits = np.log2((hist > 0).sum(1))
+	if bits > hbits:
+		hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
 	#print hist_bits
 
 
