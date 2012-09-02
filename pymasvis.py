@@ -15,8 +15,9 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
 import sys
-import inspect
+import subprocess
 import math
 import numpy as np
 import scipy as sp
@@ -26,6 +27,7 @@ import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 import matplotlib.image as mpimg
 import scipy.signal as signal
+import scikits.audiolab as alab
 
 from os.path import basename
 from scikits.audiolab import Format, Sndfile
@@ -34,26 +36,75 @@ from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim,
 
 VERSION="0.1.0"
 
-def analyze(filename):
-	f = Sndfile(filename, 'r')
+def analyze(infile, outfile=None, name=None):
+	if not outfile:
+		outfile = "%s.png" % infile
+	if not name:
+		name = basename(infile)
+
+	ext = os.path.splitext(infile)[1][1:].strip().lower()
+	if ext == 'aif':
+		ext == 'aiff'
+	tmpfile = None
+	formats = alab.available_file_formats()
+	formats.append('aif')
+	if ext not in formats and ext in ['mp3']:
+		print "Converting using ffmpeg"
+		ffmpeg_bin = None
+		for ospath in os.getenv('PATH').split(os.pathsep):
+			for binext in ['', '.exe']:
+				binpath = os.path.join(ospath, 'ffmpeg') + binext
+				if os.path.isfile(binpath):
+					print 'Found ffmpeg', binpath
+					ffmpeg_bin = binpath
+					break
+		tmpfile = "%s.%s" % (os.tempnam(), 'wav')
+		print tmpfile
+		retval = subprocess.call([ffmpeg_bin, '-i', infile, tmpfile])
+		print 'ffmpeg retval', retval
+		if retval == 0:
+			infile = tmpfile
+			ext = 'wav'
+		else:
+			print 'Could not convert %s' % infile
+			return retval
+	elif ext not in formats:
+		print "Can not read file format %s" % ext
+		return None
+
+	#print alab.available_file_formats()
+	#print alab.available_encodings(ext)
+
+	f = Sndfile(infile, 'r')
 	fs = f.samplerate
 	nc = f.channels
 	enc = f.encoding
 	nf = f.nframes
 	sec = nf/fs
+	bits = 16
+	for b in [8, 16, 24, 32, 64]:
+		if enc.find(str(b)) > -1:
+			bits = b
+			break
 
-	print basename(filename)
-
-	print "Hz: %d ch: %d enc: %s frames: %d" % (fs, nc, enc, nf)
+	print "Processing %s" % name
+	print "\tfs: %d, ch: %d, enc: %s, frames: %d, bits: %d" % (fs, nc, enc, nf, bits)
 	#print inspect.getmembers(f)
+	print f.format.file_format_description
+	print f.format.encoding_description
+
 
 	#data = f.read_frames(n, np.dtype('i2')).swapaxes(0,1)
-	data = f.read_frames(nf).swapaxes(0,1)
-	print np.abs(data).max()
+	data = f.read_frames(nf, dtype=np.dtype(float)).swapaxes(0,1)
+	if tmpfile and os.path.isfile(tmpfile):
+		os.remove(tmpfile)
+	#print np.abs(data).max()
 	#print "max: %d %d val: %d %d" % (np.argmax(data[:,0]), np.argmax(data[:,1]), data[np.argmax(data[:,0]), 0], data[np.argmax(data[:,1]), 1])
 	#print data[fs*2]
 	#print data[fs*2,1]
 
+	# Peak / RMS
+	print 'Calculating peak and RMS...'
 	data_rms = rms(data, 1) # [np.sqrt(np.mean(data[0]**2)), np.sqrt(np.mean(data[1]**2))]
 	data_peak = np.abs(data).max(1)
 	#plt.plot(data)
@@ -72,9 +123,10 @@ def analyze(filename):
 	# Crest dB
 	crest_db = db(data_peak, data_rms) # [ 20*np.log10(np.abs(data[0]).max() / rms[0]), 20*np.log10(np.abs(data[1]).max() / rms[1]) ]
 
-	print "RMS", data_rms, "Peak", data_peak, "Peak dBFS", peak_dbfs, "RMS dBFS", rms_dbfs, "Crest dB", crest_db
+	#print "RMS", data_rms, "Peak", data_peak, "Peak dBFS", peak_dbfs, "RMS dBFS", rms_dbfs, "Crest dB", crest_db
 
 	# Loudest
+	print 'Calculating loudest...'
 	window = int(fs / 50)
 	peak = data_peak.max()
 	sn_max = 0
@@ -110,7 +162,7 @@ def analyze(filename):
 				c_max = c
 				nf_max = nf_cur
 				f_max = e
-	print c_max, nf_max, f_max, f_max/float(fs)
+	#print c_max, nf_max, f_max, f_max/float(fs)
 
 	w_max = (f_max - fs/20, f_max + fs/20)
 	if w_max[0] < 0:
@@ -122,6 +174,7 @@ def analyze(filename):
 	#print np.sum(rolling_window(peaks, window), -1).max()
 
 	# Spectrum
+	print 'Calculating spectrum...'
 	frames = nf/fs
 	wfunc = np.blackman(fs)
 	norm_spec = np.zeros((nc,fs))
@@ -131,6 +184,7 @@ def analyze(filename):
 		norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
 
 	# Allpass
+	print 'Calculating allpass...'
 	ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
 	ap_crest = np.zeros((len(ap_freqs),nc))
 	ap_rms = np.zeros((len(ap_freqs),nc))
@@ -161,19 +215,22 @@ def analyze(filename):
 		ap_peak[i] = y.max(1)
 		ap_rms[i] = rms(y, 1)
 		ap_crest[i] = db(ap_peak[i], ap_rms[i])
-	print 'AP Crest', ap_crest
+	#print 'AP Crest', ap_crest
 
 	# Histogram
-	hist = np.zeros((nc, 2**16))
-	hist_bins = np.zeros((nc, 2**16+1))
+	print 'Calculating histogram...'
+	hist_bits = 16
+	hist = np.zeros((nc, 2**hist_bits))
+	hist_bins = np.zeros((nc, 2**hist_bits+1))
 	for c in range(nc):
-		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**16, range=(-1.0, 1.0))
+		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**hist_bits, range=(-1.0, 1.0))
 	#print hist.shape
-	hist_bits = np.log2((hist > 0).sum(1))
+	hist_bits = np.log2((hist > 0).sum(1)) * bits / float(hist_bits) # fake but counting 2**24 bins take way too long to be worth it
 	#print hist_bits
 
 
 	# Peak vs RMS
+	print 'Calculating peak vs RMS...'
 	n_1s = nf/fs
 	peak_1s_dbfs = np.zeros((nc, n_1s))
 	rms_1s_dbfs = np.zeros((nc, n_1s))
@@ -195,13 +252,14 @@ def analyze(filename):
 	#
 	# Plot
 	#
+	print "Drawing plot..."
 	c_color = ['b', 'r']
 	c_name = ['left', 'right']
 
 
 
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
-	fig.suptitle(basename(filename), fontweight='bold')
+	fig.suptitle(name, fontweight='bold')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 
 	"""cc_img = mpimg.imread('cc.png')
@@ -219,6 +277,7 @@ def analyze(filename):
 	nf_d = len(data_d[0])
 
 	# Left channel
+	print "Drawing left channel..."
 	ax_lch = subplot(gs[0,:]) #subplot(4,2,1)
 
 	new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
@@ -235,6 +294,7 @@ def analyze(filename):
 
 
 	# Right channel
+	print "Drawing right channel..."
 	ax_rch = subplot(gs[1,:], sharex=ax_lch)
 	new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
 	new_fs = new_nf/sec
@@ -254,6 +314,7 @@ def analyze(filename):
 	axis_defaults(ax_rch)
 
 	# Loudest
+	print "Drawing loudest..."
 	ax_max = subplot(gs[2,:])
 	plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 	ylim(-1.0, 1.0)
@@ -269,7 +330,8 @@ def analyze(filename):
 
 	axis_defaults(ax_max)
 
-	# Normalized
+	# Spectrum
+	print "Drawing spectrum..."
 	ax_norm = subplot(gs[3,0])
 	semilogx(
 		[0.02, 0.06], [-80, -90], 'k-',
@@ -310,6 +372,7 @@ def analyze(filename):
 
 
 	# Allpass
+	print "Drawing allpass..."
 	ax_ap = subplot(gs[3,1])
 	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
 	semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
@@ -329,6 +392,7 @@ def analyze(filename):
 	axis_defaults(ax_ap)
 
 	# Histogram
+	print "Drawing histogram..."
 	ax_hist = subplot(gs[4,0])
 	#print hist.shape
 	new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
@@ -348,6 +412,7 @@ def analyze(filename):
 	axis_defaults(ax_hist)
 
 	# Peak vs RMS
+	print "Drawing peak vs RMS..."
 	ax_pr = subplot(gs[4,1])
 	plot(
 		[-50,    0], [-50, 0], 'k-',
@@ -374,6 +439,7 @@ def analyze(filename):
 	axis_defaults(ax_pr)
 
 	# Shortterm crest
+	print "Drawing short term crest..."
 	ax_1s = subplot(gs[5,:])
 	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
 	plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
@@ -389,9 +455,9 @@ def analyze(filename):
 	axis_defaults(ax_1s)
 
 	#plt.show()
-	out_file = "%s.png" % filename
-	print "Saving analysis to %s" % out_file
-	plt.savefig(out_file, format='png', dpi=74)
+	#out_file = "%s.png" % filename
+	print "Saving analysis to %s" % outfile
+	plt.savefig(outfile, format='png', dpi=74)
 
 def xpixels(ax):
 	"""print 'get_position', ax.get_position()
@@ -439,7 +505,7 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
 		elif which is 'both':
 			y[i*minmax] = x[j:k].max()
 			y[i*minmax+1] = x[j:k].min()
-	print "pixels %0.2f, input len: %d, output len: %d, sample window %d, samples: %d, k: %d" % (pixels, len(x), n, w, nw, k)
+	#print "pixels %0.2f, input len: %d, output len: %d, sample window %d, samples: %d, k: %d" % (pixels, len(x), n, w, nw, k)
 	return (y, n, r)
 
 
@@ -520,6 +586,13 @@ if __name__ == "__main__":
 		filename = sys.argv[1]
 	else:
 		print "Usage: %s filename" % sys.argv[0]
-		exit()
+		exit(1)
+	if not os.path.isfile(filename):
+		print "File %s not found" % filename
+		exit(1)
 
-	analyze(filename)
+	infile = filename
+	outfile = "%s.%s" % (filename, 'png')
+	name = basename(filename)
+
+	analyze(infile, outfile, name)
