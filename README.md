@@ -4,11 +4,17 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 
 ## Requirements
 
-Numpy, SciPy, Matplotlib, Audiolab
+NumPy, SciPy, Matplotlib, Audiolab.
+
+FFmpeg if MP3 support is required.
 
 ## Usage
 
 Analyse a file by running `python pymasvis.py filename`. The result will be output to `filename.png`.
 
-PyMasVis only supports libsndfile compatible formats (wav, flac, au, ogg etc) at the moment.
+## Notes
+
+PyMasVis supports libsndfile compatible formats (wav, flac, au, ogg etc). MP3 and other formats are supported if FFmpeg is installed.
+
+Histogram is calculated using 2^16 bins regardless of real bit depth. The "bits" result is scaled to the presumed real bit depth.
 
