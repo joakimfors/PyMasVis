@@ -34,7 +34,7 @@ from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 def analyze(infile, outfile=None, name=None):
 	if not outfile:
