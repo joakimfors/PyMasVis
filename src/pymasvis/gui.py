@@ -1,13 +1,15 @@
-from Tkinter import *
+import os
 import tkFileDialog
+
+from Tkinter import *
 #from . import analyze
 
 class App(Frame):
 	def __init__(self, master=None):
 		Frame.__init__(self, master)
-		self.pack()
+		self.pack(fill=BOTH, expand=YES, anchor=W)
 
-		self.entrythingy = Entry()
+		"""self.entrythingy = Entry()
 		self.entrythingy.pack()
 
 		# here is the application variable
@@ -23,8 +25,9 @@ class App(Frame):
 		self.entrythingy.bind(
 			'<Key-Return>',
 			self.print_contents
-		)
+		)"""
 		self.create_menu()
+		self.create_fileview()
 
 
 
@@ -59,27 +62,74 @@ class App(Frame):
 		# display the menu
 		self.master.config(menu=menubar)
 
+	def create_fileview(self):
+		self.fileview = DDList(self,
+			activestyle="none",
+			selectmode=SINGLE
+		)
+		self.fileview.pack(fill=BOTH, expand=YES, anchor=W)
+
+
 	def open_files(self):
 		files = tkFileDialog.askopenfilename(
 			multiple=True
 		)
 		for f in files:
 			print 'file: ', f
+			self.fileview.insert(END, DDFile(f))
 
 
 	def print_contents(self, event):
 		print "hi. contents of entry is now ---->", \
 		self.contents.get()
 
+class DDList(Listbox):
+	""" A Tkinter listbox with drag'n'drop reordering of entries. """
+	def __init__(self, master, **kw):
+		kw['selectmode'] = SINGLE
+		Listbox.__init__(self, master, kw)
+		self.bind('<Button-1>', self.setCurrent)
+		self.bind('<B1-Motion>', self.shiftSelection)
+		self.curIndex = None
+
+	def setCurrent(self, event):
+		self.curIndex = self.nearest(event.y)
+
+	def shiftSelection(self, event):
+		i = self.nearest(event.y)
+		if i < self.curIndex:
+			x = self.get(i)
+			self.delete(i)
+			self.insert(i+1, x)
+			self.curIndex = i
+		elif i > self.curIndex:
+			x = self.get(i)
+			self.delete(i)
+			self.insert(i-1, x)
+			self.curIndex = i
+
+class DDFile():
+	def __init__(self, filename):
+		self.filename = filename
+
+	def __str__(self):
+		return os.path.basename(self.filename)
+
+		"""Here is an example of use of this DDList class, presented, as usual, with a guard of if _ _name_ _ == ' _ _main_ _ ' so we can make it part of the module containing the class and have it run when the module is executed as a "main script":
+
+		if _ _name_ _ == '_ _main_ _': tk = Tkinter.Tk( ) length = 10 dd = DDList(tk, height=length) dd.pack( ) for i in xrange(length): dd.insert(Tkinter.END, str(i)) def show( ): ''' show the current ordering every 2 seconds ''' for x in dd.get(0, Tkinter.END): print x, print tk.after(2000, show) tk.after(2000, show) tk.mainloop( )"""
+
+
 def init():
 	# create the application
-	myapp = App(Tk())
+	myapp = App()
 
 	#
 	# here are method calls to the window manager class
 	#
-	myapp.master.title("My Do-Nothing Application")
-	myapp.master.maxsize(1000, 400)
+	myapp.master.title("PyMasVis")
+	myapp.master.geometry("400x600+40+40")
+	#myapp.master.maxsize(1000, 400)
 
 	# start the program
 	myapp.mainloop()
