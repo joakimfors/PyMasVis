@@ -27,12 +27,14 @@ import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 import matplotlib.image as mpimg
 import scipy.signal as signal
+import scipy.io as sio
 import scikits.audiolab as alab
 
 from os.path import basename
 from scikits.audiolab import Format, Sndfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
+from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
 VERSION="0.2.0"
 
@@ -44,7 +46,7 @@ def analyze(infile, outfile=None, name=None):
 
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
 	if ext == 'aif':
-		ext == 'aiff'
+		ext = 'aiff'
 	tmpfile = None
 	formats = alab.available_file_formats()
 	formats.append('aif')
@@ -308,7 +310,8 @@ def analyze(infile, outfile=None, name=None):
 	ylim(-1.0, 1.0)
 	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_rch.get_xticklabels()[-1].set_visible(False)
+	ax_rch.xaxis.set_major_locator(MaxNLocator(prune='both')) #get_xticklabels()[-1].set_visible(False)
+	ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 	xlabel('s', fontsize='small')
 	if c_max == 1:
 		mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
@@ -325,7 +328,8 @@ def analyze(infile, outfile=None, name=None):
 	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
 	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_max.get_xticklabels()[-1].set_visible(False)
+	ax_max.xaxis.set_major_locator(MaxNLocator(nbins=5, prune='both')) #get_xticklabels()[-1].set_visible(False)
+	ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
 	xlabel('s', fontsize='small')
 
 	#print ax_max.get_xaxis_text1_transform()
@@ -454,7 +458,8 @@ def analyze(infile, outfile=None, name=None):
 	title("Short term (1 s) crest factor", fontsize='small')
 	xlabel('s', fontsize='small')
 	ylabel('dB', fontsize='small', rotation=0)
-	ax_1s.get_xticklabels()[-1].set_visible(False)
+	ax_1s.xaxis.set_major_locator(MaxNLocator(prune='both')) #get_xticklabels()[-1].set_visible(False)
+	ax_1s.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 
 	axis_defaults(ax_1s)
 
@@ -566,6 +571,26 @@ def axis_defaults(ax):
 	ax.yaxis.get_label().set_ha('right')
 	ax.yaxis.get_label().set_va('top')
 	#print 'foo', ax.transAxes.transform((0.0, 1.0))
+
+	#
+	#print "x unit pos", ax.transData.inverted().transform(xpos)
+	"""print "x minpos", ax.xaxis.get_minpos()
+	print "x xlim", ax.get_xlim()
+	print "x ticks"
+	x_tick_max = ax.get_xlim()[1]
+	x_ticks = ax.xaxis.get_major_ticks()
+	xl = ax.xaxis.get_majorticklocs()
+	tick_dist = xl[1] - xl[0]
+	print "tick dist", tick_dist
+	for i, l in enumerate(xl):
+		print l, x_ticks[i]
+		x_ticks[i].update_position(l)
+		x_ticks[i].set_label(str(l))
+		if l > x_tick_max - tick_dist/2:
+			print "booooooom"
+			x_ticks[i].set_label("")
+	ax.xaxis.set_ticks(x_ticks)"""
+
 
 def rms(data, axis = 0):
 	return np.sqrt((data**2).mean(axis))
