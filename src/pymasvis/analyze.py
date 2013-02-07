@@ -27,11 +27,9 @@ import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 import matplotlib.image as mpimg
 import scipy.signal as signal
-import scipy.io as sio
-import scikits.audiolab as alab
 
 from os.path import basename
-from scikits.audiolab import Format, Sndfile
+from scipy.io import wavfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
@@ -45,12 +43,8 @@ def analyze(infile, outfile=None, name=None):
 		name = basename(infile)
 
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
-	if ext == 'aif':
-		ext = 'aiff'
 	tmpfile = None
-	formats = alab.available_file_formats()
-	formats.append('aif')
-	if ext not in formats and ext in ['mp3']:
+	if ext is not "wav":
 		print "Converting using ffmpeg"
 		ffmpeg_bin = None
 		for ospath in os.getenv('PATH').split(os.pathsep):
@@ -70,18 +64,17 @@ def analyze(infile, outfile=None, name=None):
 		else:
 			print 'Could not convert %s' % infile
 			return retval
-	elif ext not in formats:
-		print "Can not read file format %s" % ext
-		return None
+
 
 	#print alab.available_file_formats()
 	#print alab.available_encodings(ext)
 
-	f = Sndfile(infile, 'r')
-	fs = f.samplerate
-	nc = f.channels
-	enc = f.encoding
-	nf = f.nframes
+	#f = Sndfile(infile, 'r')
+	fs, raw_data = wavfile.read(infile)
+	#fs = f.samplerate
+	nc = raw_data.shape[1]
+	enc = str(raw_data.dtype)
+	nf = raw_data.shape[0]
 	sec = nf/fs
 	bits = 16
 	for b in [8, 16, 24, 32, 64]:
@@ -92,12 +85,14 @@ def analyze(infile, outfile=None, name=None):
 	print "Processing %s" % name
 	print "\tfs: %d, ch: %d, enc: %s, frames: %d, bits: %d" % (fs, nc, enc, nf, bits)
 	#print inspect.getmembers(f)
-	print f.format.file_format_description
-	print f.format.encoding_description
+	#print f.format.file_format_description
+	#print f.format.encoding_description
 
 
 	#data = f.read_frames(n, np.dtype('i2')).swapaxes(0,1)
-	data = f.read_frames(nf, dtype=np.dtype(float)).swapaxes(0,1)
+	#data = f.read_frames(nf, dtype=np.dtype(float)).swapaxes(0,1)
+	data = raw_data.astype('float').swapaxes(0,1)
+	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.remove(tmpfile)
 	#print np.abs(data).max()

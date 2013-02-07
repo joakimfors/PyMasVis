@@ -4,9 +4,11 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 
 ## Requirements
 
-NumPy, SciPy, Matplotlib, Audiolab.
+- NumPy
+- SciPy
+- Matplotlib
 
-FFmpeg if MP3 support is required.
+FFmpeg is required for anything other than WAV files.
 
 ## Usage
 
