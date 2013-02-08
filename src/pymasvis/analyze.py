@@ -299,13 +299,15 @@ def analyze(infile, outfile=None, name=None):
 	print "Drawing histogram..."
 	ax_hist = subplot(gs[4,0])
 	new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
-	new_hist[(new_hist == 1.0)] += 0.5
+	new_hist[(new_hist == 1.0)] = 1.3
+	new_hist[(new_hist < 1.0)] = 1.0
 	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
 	new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
-	new_hist[(new_hist == 1.0)] += 0.5
+	new_hist[(new_hist == 1.0)] = 1.3
+	new_hist[(new_hist < 1.0)] = 1.0
 	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
 	xlim(-1.1, 1.1)
-	ylim(0,50000)
+	ylim(1,50000)
 	xticks(np.arange(-1.0, 1.2, 0.2))
 	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small')
 	ylabel('n', fontsize='small', rotation=0)
