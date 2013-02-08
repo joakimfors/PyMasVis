@@ -177,6 +177,9 @@ def analyze(infile, outfile=None, name=None):
 			rms_1s_dbfs[c][i] = db(b, 1.0)
 			crest_1s_db[c][i] = db(a, b)
 
+	print 'Calculating checksum...'
+	checksum = (raw_data.astype('uint32')**2).sum()
+
 	#
 	# Plot
 	#
@@ -185,6 +188,7 @@ def analyze(infile, outfile=None, name=None):
 	c_name = ['left', 'right']
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
 	fig.suptitle(name, fontweight='bold')
+	fig.text(0.095, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 	rc('lines', linewidth=0.5, antialiased=True)
 	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.04, top=0.94)
