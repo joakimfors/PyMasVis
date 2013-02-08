@@ -43,7 +43,7 @@ def analyze(infile, outfile=None, name=None):
 		name = basename(infile)
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
 	tmpfile = None
-	if ext is not "wav":
+	if ext != "wav":
 		print "Converting using ffmpeg"
 		ffmpeg_bin = None
 		for ospath in os.getenv('PATH').split(os.pathsep):
