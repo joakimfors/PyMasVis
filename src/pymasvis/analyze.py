@@ -34,7 +34,7 @@ from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
-VERSION="0.2.0"
+VERSION="0.3.0"
 
 def analyze(infile, outfile=None, name=None):
 	if not outfile:
@@ -616,7 +616,7 @@ if __name__ == "__main__":
 		exit(1)
 
 	infile = filename
-	outfile = "%s.%s" % (filename, 'png')
+	outfile = "%s-%s" % (filename, 'pymasvis.png')
 	name = basename(filename)
 
 	analyze(infile, outfile, name)
