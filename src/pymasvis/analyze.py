@@ -403,7 +403,7 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
 
 
 def mark_span(ax, span):
-	ax.axvspan(*span, edgecolor='0.2', facecolor='0.98', fill=False, linestyle='dotted', linewidth=0.5, zorder=10)
+	ax.axvspan(*span, edgecolor='0.2', facecolor='0.98', fill=False, linestyle='dotted', linewidth=0.8, zorder=10)
 
 
 def axis_defaults(ax):
