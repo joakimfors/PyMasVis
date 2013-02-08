@@ -91,7 +91,8 @@ def analyze(infile, outfile=None, name=None):
 
 	#data = f.read_frames(n, np.dtype('i2')).swapaxes(0,1)
 	#data = f.read_frames(nf, dtype=np.dtype(float)).swapaxes(0,1)
-	data = raw_data.astype('float').swapaxes(0,1)
+	raw_data = raw_data.swapaxes(0,1)
+	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.remove(tmpfile)
@@ -222,7 +223,7 @@ def analyze(infile, outfile=None, name=None):
 	hist = np.zeros((nc, 2**hbits))
 	hist_bins = np.zeros((nc, 2**hbits+1))
 	for c in range(nc):
-		hist[c], hist_bins[c] = np.histogram(data[c], bins=2**hbits, range=(-1.0, 1.0))
+		hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits)
 	#print hist.shape
 	hist_bits = np.log2((hist > 0).sum(1))
 	if bits > hbits:
