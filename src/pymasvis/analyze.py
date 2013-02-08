@@ -361,6 +361,7 @@ def analyze(infile, outfile=None, name=None):
 	# Save
 	print "Saving analysis to %s" % outfile
 	plt.savefig(outfile, format='png', dpi=74)
+	return outfile
 
 
 def xpixels(ax):
