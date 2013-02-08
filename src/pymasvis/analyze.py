@@ -109,6 +109,8 @@ def analyze(infile, outfile=None, name=None):
 	c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
 	for c in range(nc):
 		peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
+		if len(peaks) == 0:
+			continue
 		nf_cur = 0
 		it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
 		for e in it:
