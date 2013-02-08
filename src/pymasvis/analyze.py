@@ -157,7 +157,7 @@ def analyze(infile, outfile=None, name=None):
 	hist = np.zeros((nc, 2**hbits))
 	hist_bins = np.zeros((nc, 2**hbits+1))
 	for c in range(nc):
-		hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits)
+		hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits, range=(-2.0**(hbits-1), 2.0**(hbits-1)-1))
 	hist_bits = np.log2((hist > 0).sum(1))
 	if bits > hbits:
 		hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
