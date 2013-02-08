@@ -38,7 +38,7 @@ VERSION="0.3.2"
 
 def analyze(infile, outfile=None, name=None):
 	if not outfile:
-		outfile = "%s.png" % infile
+		outfile = "%s-pymasvis.png" % infile
 	if not name:
 		name = basename(infile)
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
