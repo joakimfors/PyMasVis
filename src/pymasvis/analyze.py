@@ -44,19 +44,24 @@ def analyze(infile, outfile=None, name=None):
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
 	tmpfile = None
 	if ext != "wav":
-		print "Converting using ffmpeg"
 		ffmpeg_bin = None
-		for ospath in os.getenv('PATH').split(os.pathsep):
+		paths = [d for d in sys.path if 'Contents/Resources' in d]
+		paths.extend(os.getenv('PATH').split(os.pathsep))
+		for ospath in paths:
 			for binext in ['', '.exe']:
 				binpath = os.path.join(ospath, 'ffmpeg') + binext
 				if os.path.isfile(binpath):
 					print 'Found ffmpeg', binpath
 					ffmpeg_bin = binpath
+					found = True
 					break
+			if ffmpeg_bin: break
+		if not ffmpeg_bin:
+			print "Could not find ffmpeg"
+			return 1
+		print "Converting using ffmpeg"
 		tmpfile = "%s.%s" % (os.tempnam(), 'wav')
-		print tmpfile
 		retval = subprocess.call([ffmpeg_bin, '-i', infile, tmpfile])
-		print 'ffmpeg retval', retval
 		if retval == 0:
 			infile = tmpfile
 			ext = 'wav'
