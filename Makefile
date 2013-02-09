@@ -1,5 +1,5 @@
 FILES = src/PyMasVis.py src/pymasvis/analyze.py src/pymasvis/gui.py src/pymasvis/widgets.py
-OPTIONS = --iconfile res/Cupcake.icns
+OPTIONS = --iconfile res/Cupcake.icns --resources res/ffmpeg
 
 devel: ${FILES}
 	python setup.py py2app -A ${OPTIONS}
