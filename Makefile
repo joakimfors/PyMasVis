@@ -6,6 +6,7 @@ devel: ${FILES}
 
 dist: ${FILES}
 	python setup.py py2app ${OPTIONS}
+	chmod +x dist/PyMasVis.app/Contents/Resources/ffmpeg
 
 clean:
 	rm -rf build dist
