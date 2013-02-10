@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Copyright 2012 Joakim Fors
 
@@ -37,6 +38,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 VERSION="0.4.0"
 
 def analyze(infile, outfile=None, name=None):
+	print 'Here I analyze', os.getcwd(), __file__
 	if not outfile:
 		outfile = "%s-pymasvis.png" % infile
 	if not name:
