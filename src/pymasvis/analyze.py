@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
+import locale
 import subprocess
 import math
 import numpy as np
@@ -467,8 +468,10 @@ if __name__ == "__main__":
 		print "File %s not found" % filename
 		exit(1)
 
-	infile = filename
-	outfile = "%s-%s" % (filename, 'pymasvis.png')
-	name = basename(filename)
+	language, encoding = locale.getdefaultlocale()
+
+	infile = filename.decode(encoding)
+	outfile = None #"%s-%s" % (filename, 'pymasvis.png')
+	name = None #basename(filename)
 
 	analyze(infile, outfile, name)
