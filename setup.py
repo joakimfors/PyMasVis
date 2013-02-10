@@ -5,12 +5,28 @@ Usage:
     python setup.py py2app
 """
 
+import sys
+sys.path.append('src')
+import pymasvis.analyze as analyze
+
 from setuptools import setup
 
+APPNAME = 'PyMasVis'
 APP = ['src/PyMasVis.py']
 DATA_FILES = []
 #OPTIONS = {'argv_emulation': True}
-OPTIONS = {}
+OPTIONS = {
+	'compressed': True,
+	'optimize': 2,
+	'strip': True,
+	'plist': {
+		'CFBundleGetInfoString': 'PyMasVis, Python Mastering Visualization',
+		'CFBundleIdentifier': 'org.joakimfors.PyMasVis',
+		'CFBundleVersion': analyze.VERSION,
+		'CFBundleShortVersionString': analyze.VERSION,
+		'NSHumanReadableCopyright': 'Joakim Fors'
+	}
+}
 
 setup(
     app=APP,
