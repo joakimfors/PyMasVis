@@ -2,6 +2,7 @@
 import os
 import subprocess
 import unicodedata
+import locale
 import tkFileDialog
 
 from Tkinter import *
@@ -99,6 +100,8 @@ class App(Frame):
 		)
 		for f in files:
 			print 'file: ', f
+			if isinstance(f, str):
+				f = unicode(f)
 			self.fileview.insert(END, DDFile(unicodedata.normalize('NFC', f)))
 
 	def do_analyze(self):
@@ -200,10 +203,11 @@ class DDList(Listbox):
 
 class DDFile():
 	def __init__(self, filename):
+		language, self.encoding = locale.getdefaultlocale()
 		self.filename = filename
 
 	def __str__(self):
-		return os.path.basename(self.filename).encode("utf-8")
+		return os.path.basename(self.filename.encode(self.encoding))
 
 		"""Here is an example of use of this DDList class, presented, as usual, with a guard of if _ _name_ _ == ' _ _main_ _ ' so we can make it part of the module containing the class and have it run when the module is executed as a "main script":
 
