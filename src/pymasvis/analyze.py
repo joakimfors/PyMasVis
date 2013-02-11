@@ -36,7 +36,7 @@ from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
-VERSION="0.4.0"
+VERSION="0.5.0"
 
 def analyze(infile, outfile=None, name=None):
 	print 'Here I analyze', os.getcwd(), __file__
