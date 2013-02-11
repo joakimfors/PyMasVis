@@ -65,7 +65,10 @@ def analyze(infile, outfile=None, name=None):
 		print "Converting using ffmpeg"
 		tmpfile = "%s.%s" % (os.tempnam(), 'wav')
 		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-map_metadata', '-1,g:-1,g', '-map_metadata', '-1,s0:-1,s0', tmpfile])
-		retval = subprocess.call([ffmpeg_bin, '-i', infile, '-acodec', 'pcm_s16le', tmpfile])
+		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-acodec', 'pcm_s16le', tmpfile])
+		retval = subprocess.call([ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile])
+		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', tmpfile])
+		#retval = subprocess.call([ffmpeg_bin, '-i', infile, tmpfile])
 		if retval == 0:
 			infile = tmpfile
 			ext = 'wav'
