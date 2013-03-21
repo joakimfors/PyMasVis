@@ -18,7 +18,11 @@ FFmpeg is required for anything other than WAV files.
 	pip install matplotlib
 	pip install pyspotify
 
-pyspotify might require separate installation of libspotify. scipy requires ATLAS/BLAS/LAPACK. Fortran compiler (gfortran).
+scipy requires ATLAS/BLAS/LAPACK. Fortran compiler (gfortran).
+
+PySpotify requires separate installation of libspotify. Libspotify can be downloaded from https://developer.spotify.com/technologies/libspotify/
+
+On Linux the contents of lib/ goes in /usr/local/lib and include/ in /usr/local/include
 
 ## Usage
 
