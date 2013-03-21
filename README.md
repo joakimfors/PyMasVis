@@ -13,10 +13,10 @@ FFmpeg is required for anything other than WAV files.
 
 ### Requirement installation
 
-pip install numpy
-pip install scipy
-pip install matplotlib
-pip install pyspotify
+	pip install numpy
+	pip install scipy
+	pip install matplotlib
+	pip install pyspotify
 
 pyspotify might require separate installation of libspotify.
 
