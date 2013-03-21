@@ -21,6 +21,7 @@ import sys
 import locale
 import subprocess
 import math
+import re
 import numpy as np
 import scipy as sp
 import matplotlib
@@ -31,20 +32,20 @@ import matplotlib.image as mpimg
 import scipy.signal as signal
 
 from os.path import basename
+from subprocess import CalledProcessError
 from scipy.io import wavfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
-VERSION="0.5.0"
+from spotidump import DumpManager
 
-def analyze(infile, outfile=None, name=None):
-	print 'Here I analyze', os.getcwd(), __file__
-	if not outfile:
-		outfile = "%s-pymasvis.png" % infile
-	if not name:
-		name = basename(infile)
+VERSION="0.6.0"
+
+def load_file(infile):
+	name = os.path.splitext(basename(infile))[0]
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
+	bps = '1411 kbps'
 	tmpfile = None
 	if ext != "wav":
 		ffmpeg_bin = None
@@ -64,17 +65,21 @@ def analyze(infile, outfile=None, name=None):
 			return 1
 		print "Converting using ffmpeg"
 		tmpfile = "%s.%s" % (os.tempnam(), 'wav')
-		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-map_metadata', '-1,g:-1,g', '-map_metadata', '-1,s0:-1,s0', tmpfile])
-		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-acodec', 'pcm_s16le', tmpfile])
-		retval = subprocess.call([ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile])
-		#retval = subprocess.call([ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', tmpfile])
-		#retval = subprocess.call([ffmpeg_bin, '-i', infile, tmpfile])
-		if retval == 0:
+		try:
+			output = subprocess.check_output(
+				[ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
+				stderr=subprocess.STDOUT
+			)
 			infile = tmpfile
-			ext = 'wav'
-		else:
+			for line in output.splitlines():
+				match = re.match('.*Stream.*?Audio: (.*?),.*, (\d*?) kb/s', line)
+				if match:
+					fmt, bps = match.group(1, 2)
+					bps = bps + ' kbps'
+					break
+		except CalledProcessError as e:
 			print 'Could not convert %s' % infile
-			return retval
+			return e.retval
 
 	fs, raw_data = wavfile.read(infile)
 	nc = raw_data.shape[1]
@@ -87,14 +92,62 @@ def analyze(infile, outfile=None, name=None):
 			bits = b
 			break
 
-	print "Processing %s" % name
-	print "\tfs: %d, ch: %d, enc: %s, frames: %d, bits: %d" % (fs, nc, enc, nf, bits)
-
 	raw_data = raw_data.swapaxes(0,1)
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.remove(tmpfile)
+
+	#bps = '1411 kbps'
+
+
+	# Raw data, float data, frames, samplerate, channels, bitdepth, duration
+	return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+
+
+def load_spotify(link, username, password):
+	dumper = DumpManager(username, password, link, 320)
+	dumper.dump()
+
+	name = dumper.trackname
+	ext = 'spotify ogg'
+	bps = '320 kbps'
+	fs = dumper.sample_rate
+	nc = dumper.channels
+	nf = dumper.frames
+	sec = nf/fs
+	bits = 16
+
+	raw_data = dumper.get_nparray()
+	data = raw_data.astype('float')
+	data /= 2**(bits-1)
+
+	return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+
+def analyze(infile, outfile=None, header=None, username=None, password=None):
+	print 'Here I analyze', os.getcwd(), __file__
+	loader = None
+	loader_args = []
+	spotify = False
+	if os.path.isfile(infile):
+		print "Selecting file loader"
+		loader = load_file
+		loader_args = [infile]
+	elif infile.startswith('spotify:'):
+		print "Selecting Spotify loader"
+		loader = load_spotify
+		loader_args = [infile, username, password]
+		spotify = True
+	raw_data, data, nf, fs, nc, bits, sec, name, ext, bps = loader(*loader_args)
+	if not outfile and spotify:
+		outfile = "%s.spotify-pymasvis.png" % name
+	elif not outfile:
+		outfile = "%s-pymasvis.png" % infile
+	if not header:
+		header = "%s (%s) (%s)" % (name, ext, bps)
+
+	print "Processing %s" % name
+	print "\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tformat: %s\n\tbitrate: %s" % (fs, nc, nf, bits, ext, bps)
 
 	# Peak / RMS
 	print 'Calculating peak and RMS...'
@@ -201,7 +254,7 @@ def analyze(infile, outfile=None, name=None):
 	c_color = ['b', 'r']
 	c_name = ['left', 'right']
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
-	fig.suptitle(name, fontweight='bold')
+	fig.suptitle(header, fontweight='bold')
 	fig.text(0.095, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 	rc('lines', linewidth=0.5, antialiased=True)
@@ -462,19 +515,20 @@ def rolling_window(a, window):
 
 
 if __name__ == "__main__":
-	if len(sys.argv) == 2:
-		filename = sys.argv[1]
-	else:
-		print "Usage: %s filename" % sys.argv[0]
-		exit(1)
-	if not os.path.isfile(filename):
+	import optparse
+	usage = "usage: %prog [options] arg"
+	op = optparse.OptionParser(usage)
+	op.add_option("-u", "--username", help="Spotify username")
+	op.add_option("-p", "--password", help="Spotify password")
+	(options, args) = op.parse_args()
+	if len(args) != 1:
+		op.error("Missing spotify link")
+	filename = args[0]
+	if not os.path.isfile(filename) and not filename.startswith('spotify:'):
 		print "File %s not found" % filename
 		exit(1)
-
 	language, encoding = locale.getdefaultlocale()
-
 	infile = filename.decode(encoding)
 	outfile = None #"%s-%s" % (filename, 'pymasvis.png')
 	name = None #basename(filename)
-
-	analyze(infile, outfile, name)
+	analyze(infile, outfile, name, options.username, options.password)
