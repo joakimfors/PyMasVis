@@ -11,6 +11,15 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 
 FFmpeg is required for anything other than WAV files.
 
+### Requirement installation
+
+pip install numpy
+pip install scipy
+pip install matplotlib
+pip install pyspotify
+
+pyspotify might require separate installation of libspotify.
+
 ## Usage
 
 Analyse a file by running `python src/pymasvis/analyze.py filename`. The result will be output to `filename-pymasvis.png`. Spotify analysis is done by running `python src/pymasvis/analyze.py -u username -p password spotify_link`. Result when using Spotify is output to current working directory.
