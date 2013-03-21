@@ -24,6 +24,8 @@ PySpotify requires separate installation of libspotify. Libspotify can be downlo
 
 On Linux the contents of lib/ goes in /usr/local/lib and include/ in /usr/local/include
 
+On OS X libspotify.framework/Versions/12.1.51/Headers/api.h goes into /usr/include/libspotify and libspotify.framework/libspotify is copied to /usr/lib/libspotify.so
+
 ## Usage
 
 Analyse a file by running `python src/pymasvis/analyze.py filename`. The result will be output to `filename-pymasvis.png`. Spotify analysis is done by running `python src/pymasvis/analyze.py -u username -p password spotify_link`. Result when using Spotify is output to current working directory.
