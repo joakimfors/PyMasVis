@@ -38,7 +38,6 @@ from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
-from spotidump import DumpManager
 
 VERSION="0.6.0"
 
@@ -524,6 +523,8 @@ if __name__ == "__main__":
 	if len(args) != 1:
 		op.error("Missing spotify link")
 	filename = args[0]
+	if filename.startswith('spotify:'):
+		from spotidump import DumpManager
 	if not os.path.isfile(filename) and not filename.startswith('spotify:'):
 		print "File %s not found" % filename
 		exit(1)
