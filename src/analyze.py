@@ -437,7 +437,7 @@ def render(track, analysis, header):
 	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
 	xlim(-1.1, 1.1)
 	ylim(1,50000)
-	xticks(np.arange(-1.0, 1.2, 0.2), (1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
+	xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
 	yticks([10, 100, 1000], (10, 100, 1000))
 	#ax_hist.set_xticklabels((1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1), minor=False)
 	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
