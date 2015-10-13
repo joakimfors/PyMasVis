@@ -564,7 +564,15 @@ def rms(data, axis = 0):
 
 
 def db(a, b):
-	return 20*np.log10(np.divide(a, b))
+	with np.errstate(divide='ignore', invalid='ignore'):
+		c = np.true_divide(a,b)
+		c = 20*np.log10(c)
+		if isinstance(c, np.ndarray):
+			c[c == -np.inf] = -128.0
+		elif isinstance(c, np.float64) and c == -np.inf:
+			c = -128.0
+		c = np.nan_to_num(c)
+	return c
 
 
 def allpass(fc, fs):
