@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import os
+import io
 import sys
 import locale
 import subprocess
@@ -32,6 +33,7 @@ import matplotlib.image as mpimg
 import scipy.signal as signal
 
 from os.path import basename
+from tempfile import mkstemp
 from subprocess import CalledProcessError
 from scipy.io import wavfile
 from matplotlib import rc, gridspec
@@ -63,7 +65,7 @@ def load_file(infile):
 			print "Could not find ffmpeg"
 			return 1
 		print "Converting using ffmpeg"
-		tmpfile = "%s.%s" % (os.tempnam(), 'wav')
+		tmpfd, tmpfile = mkstemp(suffix='wav') #"%s.%s" % (os.tempnam(), 'wav')
 		try:
 			output = subprocess.check_output(
 				[ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
@@ -101,7 +103,23 @@ def load_file(infile):
 
 
 	# Raw data, float data, frames, samplerate, channels, bitdepth, duration
-	return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+	#return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+	return {
+		'data': {
+			'fixed': raw_data,
+			'float': data
+		},
+		'frames': nf,
+		'samplerate': fs,
+		'channels': nc,
+		'bitdepth': bits,
+		'duration': sec,
+		'metadata': {
+			'filename': name,
+			'extension': ext,
+			'bps': bps
+		}
+	}
 
 
 def load_spotify(link, username, password):
@@ -121,29 +139,35 @@ def load_spotify(link, username, password):
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 
-	return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+	#return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
+	return {
+		'data': {
+			'fixed': raw_data,
+			'float': data
+		},
+		'frames': nf,
+		'samplerate': fs,
+		'channels': nc,
+		'bitdepth': bits,
+		'duration': sec,
+		'metadata': {
+			'filename': name,
+			'extension': ext,
+			'bps': bps
+		}
+	}
 
-def analyze(infile, outfile=None, header=None, username=None, password=None):
-	print 'Here I analyze', os.getcwd(), __file__
-	loader = None
-	loader_args = []
-	spotify = False
-	if os.path.isfile(infile):
-		print "Selecting file loader"
-		loader = load_file
-		loader_args = [infile]
-	elif infile.startswith('spotify:'):
-		print "Selecting Spotify loader"
-		loader = load_spotify
-		loader_args = [infile, username, password]
-		spotify = True
-	raw_data, data, nf, fs, nc, bits, sec, name, ext, bps = loader(*loader_args)
-	if not outfile and spotify:
-		outfile = "%s.spotify-pymasvis.png" % name
-	elif not outfile:
-		outfile = "%s-pymasvis.png" % infile
-	if not header:
-		header = "%s (%s) (%s)" % (name, ext, bps)
+def analyze(track):
+	data = track['data']['float']
+	raw_data = track['data']['fixed']
+	nf = track['frames']
+	fs = track['samplerate']
+	nc = track['channels']
+	bits = track['bitdepth']
+	sec = track['duration']
+	name = track['metadata']['filename']
+	ext = track['metadata']['extension']
+	bps = track['metadata']['bps']
 
 	print "Processing %s" % name
 	print "\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tformat: %s\n\tbitrate: %s" % (fs, nc, nf, bits, ext, bps)
@@ -247,19 +271,51 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	checksum = (raw_data.astype('uint32')**2).sum()
 
 	#
+	return {
+		'crest_db': crest_db,
+		'rms_dbfs': rms_dbfs,
+		'peak_dbfs': peak_dbfs,
+		'c_max': c_max,
+		'w_max': w_max,
+		'f_max': f_max,
+		'nf_max': nf_max,
+		'norm_spec': norm_spec,
+		'frames': frames,
+		'n_1s': n_1s, # FIXME: same as frames?
+		'ap_freqs': ap_freqs,
+		'ap_crest': ap_crest,
+		'hist': hist,
+		'hist_bits': hist_bits,
+		'rms_1s_dbfs': rms_1s_dbfs,
+		'peak_1s_dbfs': peak_1s_dbfs,
+		'crest_1s_db': crest_1s_db,
+		'checksum': checksum
+	}
+
+def render(track, analysis, header):
+	#
 	# Plot
 	#
+	checksum = analysis['checksum']
 	print "Drawing plot..."
 	c_color = ['b', 'r']
 	c_name = ['left', 'right']
 	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
-	fig.suptitle(header, fontweight='bold')
+	fig.suptitle(header, fontsize='medium') #fontweight='bold')
 	fig.text(0.095, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 	rc('lines', linewidth=0.5, antialiased=True)
 	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.04, top=0.94)
 
 	# Left channel
+	data = track['data']['float']
+	sec = track['duration']
+	crest_db = analysis['crest_db']
+	rms_dbfs = analysis['rms_dbfs']
+	peak_dbfs = analysis['peak_dbfs']
+	c_max = analysis['c_max']
+	w_max = analysis['w_max']
+	fs = track['samplerate']
 	print "Drawing left channel..."
 	ax_lch = subplot(gs[0,:])
 	new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
@@ -268,7 +324,7 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	plot(new_range, new_data, 'b-')
 	xlim(0, sec)
 	ylim(-1.0, 1.0)
-	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small')
+	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small', loc='left')
 	setp(ax_lch.get_xticklabels(), visible=False)
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 	if c_max == 0:
@@ -283,7 +339,7 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	plot(new_range, new_data, 'r-')
 	xlim(0, sec)
 	ylim(-1.0, 1.0)
-	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small')
+	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small', loc='left')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 	ax_rch.xaxis.set_major_locator(MaxNLocator(prune='both'))
 	ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
@@ -294,12 +350,14 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	axis_defaults(ax_rch)
 
 	# Loudest
+	f_max = analysis['f_max']
+	nf_max = analysis['nf_max']
 	print "Drawing loudest..."
 	ax_max = subplot(gs[2,:])
 	plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 	ylim(-1.0, 1.0)
 	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
-	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small')
+	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small', loc='left')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 	ax_max.xaxis.set_major_locator(MaxNLocator(nbins=5, prune='both'))
 	ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
@@ -307,6 +365,8 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	axis_defaults(ax_max)
 
 	# Spectrum
+	norm_spec = analysis['norm_spec']
+	frames = analysis['frames']
 	print "Drawing spectrum..."
 	ax_norm = subplot(gs[3,0])
 	semilogx(
@@ -335,7 +395,7 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	ax_norm.xaxis.grid(True, which='both', linestyle='-', color='k', linewidth=0.5)
 	ylabel('dB', fontsize='small', verticalalignment='top', rotation=0)
 	xlabel('kHz', fontsize='small', horizontalalignment='right')
-	title("Normalized average spectrum, %d frames" % (frames), fontsize='small')
+	title("Normalized average spectrum, %d frames" % (frames), fontsize='small', loc='left')
 	ax_norm.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
 	ax_norm.set_xticks([0.03, 0.04, 0.06, 0.07, 0.08, 0.09, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 6, 8, 9, 10], minor=True)
 	ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7])
@@ -343,6 +403,8 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	axis_defaults(ax_norm)
 
 	# Allpass
+	ap_freqs = analysis['ap_freqs']
+	ap_crest = analysis['ap_crest']
 	print "Drawing allpass..."
 	ax_ap = subplot(gs[3,1])
 	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
@@ -351,17 +413,16 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
 	ylim(0,30)
 	xlim(0.02, 20)
-	title("Allpassed crest factor", fontsize='small')
+	title("Allpassed crest factor", fontsize='small', loc='left')
 	yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, ''))
+	xticks([0.1, 1, 2], (0.1, 1, 2))
 	xlabel('kHz', fontsize='small')
 	ylabel('dB', fontsize='small', rotation=0)
-	ax_ap.set_xticklabels([0, 0.1, 1], minor=False)
-	xt = np.repeat([''], 17)
-	xt[-1] = 2
-	ax_ap.set_xticklabels(xt, minor=True)
 	axis_defaults(ax_ap)
 
 	# Histogram
+	hist = analysis['hist']
+	hist_bits = analysis['hist_bits']
 	print "Drawing histogram..."
 	ax_hist = subplot(gs[4,0])
 	new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
@@ -374,13 +435,17 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
 	xlim(-1.1, 1.1)
 	ylim(1,50000)
-	xticks(np.arange(-1.0, 1.2, 0.2))
-	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small')
+	xticks(np.arange(-1.0, 1.2, 0.2), (1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
+	yticks([10, 100, 1000], (10, 100, 1000))
+	#ax_hist.set_xticklabels((1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1), minor=False)
+	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
 	ylabel('n', fontsize='small', rotation=0)
-	ax_hist.set_yticklabels(('', 10, 100, 1000), minor=False)
+	#ax_hist.set_yticklabels(('', '', 10, 100, 1000), minor=False)
 	axis_defaults(ax_hist)
 
 	# Peak vs RMS
+	rms_1s_dbfs = analysis['rms_1s_dbfs']
+	peak_1s_dbfs = analysis['peak_1s_dbfs']
 	print "Drawing peak vs RMS..."
 	ax_pr = subplot(gs[4,1])
 	plot(
@@ -399,7 +464,7 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	xlim(-50, 0)
 	ylim(-50, 0)
-	title("Peak vs RMS level", fontsize='small')
+	title("Peak vs RMS level", fontsize='small', loc='left')
 	xlabel('dBFS', fontsize='small')
 	ylabel('dBFS', fontsize='small', rotation=0)
 	xticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, '', ''))
@@ -407,6 +472,8 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	axis_defaults(ax_pr)
 
 	# Shortterm crest
+	crest_1s_db = analysis['crest_1s_db']
+	n_1s = analysis['n_1s']
 	print "Drawing short term crest..."
 	ax_1s = subplot(gs[5,:])
 	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
@@ -415,7 +482,7 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	xlim(0,n_1s)
 	yticks([10, 20], (10,))
 	ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
-	title("Short term (1 s) crest factor", fontsize='small')
+	title("Short term (1 s) crest factor", fontsize='small', loc='left')
 	xlabel('s', fontsize='small')
 	ylabel('dB', fontsize='small', rotation=0)
 	ax_1s.xaxis.set_major_locator(MaxNLocator(prune='both'))
@@ -423,9 +490,12 @@ def analyze(infile, outfile=None, header=None, username=None, password=None):
 	axis_defaults(ax_1s)
 
 	# Save
-	print "Saving analysis to %s" % outfile
-	plt.savefig(outfile, format='png', dpi=74)
-	return outfile
+	#print "Saving analysis to %s" % outfile
+	#plt.savefig(outfile, format='png', dpi=74)
+	#return outfile
+	f = io.BytesIO()
+	plt.savefig(f, format='png', dpi=74)
+	return f
 
 
 def xpixels(ax):
@@ -513,6 +583,34 @@ def rolling_window(a, window):
 	return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
 
+def run(infile, outfile=None, header=None, username=None, password=None):
+	print 'Here I analyze', os.getcwd(), __file__
+	loader = None
+	loader_args = []
+	spotify = False
+	if os.path.isfile(infile):
+		print "Selecting file loader"
+		loader = load_file
+		loader_args = [infile]
+	elif infile.startswith('spotify:'):
+		print "Selecting Spotify loader"
+		loader = load_spotify
+		loader_args = [infile, username, password]
+		spotify = True
+	#raw_data, data, nf, fs, nc, bits, sec, name, ext, bps = loader(*loader_args)
+	track = loader(*loader_args)
+	if not outfile and spotify:
+		outfile = "%s.spotify-pymasvis.png" % name
+	elif not outfile:
+		outfile = "%s-pymasvis.png" % infile
+	if not header:
+		header = "%s (%s) (%s)" % (track['metadata']['filename'], track['metadata']['extension'], track['metadata']['bps'])
+	analysis = analyze(track)
+	picture = render(track, analysis, header)
+	with open(outfile, 'wb') as f:
+		f.write(picture.getvalue())
+
+
 if __name__ == "__main__":
 	import optparse
 	usage = "usage: %prog [options] arg"
@@ -532,4 +630,4 @@ if __name__ == "__main__":
 	infile = filename.decode(encoding)
 	outfile = None #"%s-%s" % (filename, 'pymasvis.png')
 	name = None #basename(filename)
-	analyze(infile, outfile, name, options.username, options.password)
+	run(infile, outfile, name, options.username, options.password)
