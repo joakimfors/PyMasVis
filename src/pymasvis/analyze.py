@@ -68,7 +68,7 @@ def load_file(infile):
 		tmpfd, tmpfile = mkstemp(suffix='.wav') #"%s.%s" % (os.tempnam(), 'wav')
 		try:
 			output = subprocess.check_output(
-				[ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
+				[ffmpeg_bin, '-y', '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
 				stderr=subprocess.STDOUT
 			)
 			infile = tmpfile
