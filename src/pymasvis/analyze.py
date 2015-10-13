@@ -490,12 +490,9 @@ def render(track, analysis, header):
 	axis_defaults(ax_1s)
 
 	# Save
-	#print "Saving analysis to %s" % outfile
-	#plt.savefig(outfile, format='png', dpi=74)
-	#return outfile
 	f = io.BytesIO()
 	plt.savefig(f, format='png', dpi=74)
-	return f
+	return f.getvalue()
 
 
 def xpixels(ax):
@@ -608,7 +605,7 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 	analysis = analyze(track)
 	picture = render(track, analysis, header)
 	with open(outfile, 'wb') as f:
-		f.write(picture.getvalue())
+		f.write(picture)
 
 
 if __name__ == "__main__":
