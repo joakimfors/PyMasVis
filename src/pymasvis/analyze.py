@@ -455,13 +455,13 @@ def render(track, analysis, header):
 		[-50,  -30], [-20, 0], 'k-',
 		[-50,  -40], [-10, 0], 'k-',
 	)
-	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 	text(-48, -45, '0 dB', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -35, '10', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
 	text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
+	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
+	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 	xlim(-50, 0)
 	ylim(-50, 0)
 	title("Peak vs RMS level", fontsize='small', loc='left')
