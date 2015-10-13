@@ -41,7 +41,7 @@ from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim,
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 
 
-VERSION="0.6.0"
+VERSION="0.7.0"
 
 def load_file(infile):
 	name = os.path.splitext(basename(infile))[0]
