@@ -65,7 +65,7 @@ def load_file(infile):
 			print "Could not find ffmpeg"
 			return 1
 		print "Converting using ffmpeg"
-		tmpfd, tmpfile = mkstemp(suffix='wav') #"%s.%s" % (os.tempnam(), 'wav')
+		tmpfd, tmpfile = mkstemp(suffix='.wav') #"%s.%s" % (os.tempnam(), 'wav')
 		try:
 			output = subprocess.check_output(
 				[ffmpeg_bin, '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
