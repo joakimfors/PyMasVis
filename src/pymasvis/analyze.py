@@ -157,6 +157,7 @@ def load_spotify(link, username, password):
 		}
 	}
 
+
 def analyze(track):
 	data = track['data']['float']
 	raw_data = track['data']['fixed']
@@ -291,6 +292,7 @@ def analyze(track):
 		'crest_1s_db': crest_1s_db,
 		'checksum': checksum
 	}
+
 
 def render(track, analysis, header):
 	#
