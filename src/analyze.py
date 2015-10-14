@@ -294,6 +294,18 @@ def analyze(track):
 	}
 
 
+class MaxNLocatorMod(MaxNLocator):
+	def __init__(self, *args, **kwargs):
+		super(MaxNLocatorMod, self).__init__(*args, **kwargs)
+
+	def tick_values(self, vmin, vmax):
+		ticks = super(MaxNLocatorMod, self).tick_values(vmin, vmax)
+		span = vmax - vmin
+		if ticks[-1] > vmax - 0.05*span:
+			ticks = ticks[0:-1]
+		return ticks
+
+
 def render(track, analysis, header):
 	#
 	# Plot
@@ -343,7 +355,7 @@ def render(track, analysis, header):
 	ylim(-1.0, 1.0)
 	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small', loc='left')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_rch.xaxis.set_major_locator(MaxNLocator(prune='both'))
+	ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 	ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 	xlabel('s', fontsize='small')
 	if c_max == 1:
@@ -361,7 +373,7 @@ def render(track, analysis, header):
 	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
 	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small', loc='left')
 	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_max.xaxis.set_major_locator(MaxNLocator(nbins=5, prune='both'))
+	ax_max.xaxis.set_major_locator(MaxNLocatorMod(nbins=5, prune='both'))
 	ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
 	xlabel('s', fontsize='small')
 	axis_defaults(ax_max)
@@ -487,7 +499,7 @@ def render(track, analysis, header):
 	title("Short term (1 s) crest factor", fontsize='small', loc='left')
 	xlabel('s', fontsize='small')
 	ylabel('dB', fontsize='small', rotation=0)
-	ax_1s.xaxis.set_major_locator(MaxNLocator(prune='both'))
+	ax_1s.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 	ax_1s.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 	axis_defaults(ax_1s)
 
