@@ -39,6 +39,7 @@ from scipy.io import wavfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
+from PIL import Image
 
 
 VERSION="0.7.0"
@@ -505,8 +506,8 @@ def render(track, analysis, header):
 
 	# Save
 	f = io.BytesIO()
-	plt.savefig(f, format='png', dpi=74)
-	return f.getvalue()
+	plt.savefig(f, format='png', dpi=dpi, transparent=False)
+	return f
 
 
 def xpixels(ax):
@@ -627,8 +628,9 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		header = "%s (%s) (%s)" % (track['metadata']['filename'], track['metadata']['extension'], track['metadata']['bps'])
 	analysis = analyze(track)
 	picture = render(track, analysis, header)
-	with open(outfile, 'wb') as f:
-		f.write(picture)
+	img = Image.open(picture)
+	img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
+	img.save(outfile, 'PNG')
 
 
 if __name__ == "__main__":
