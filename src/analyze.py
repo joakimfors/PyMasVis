@@ -555,6 +555,7 @@ def mark_span(ax, span):
 
 
 def axis_defaults(ax):
+	ax.tick_params(direction='in', top='off', right='off')
 	ax.tick_params(axis='both', which='major', labelsize='small')
 	ax.tick_params(axis='both', which='minor', labelsize='small')
 	xpad = ax.xaxis.labelpad
