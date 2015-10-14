@@ -45,8 +45,15 @@ from PIL import Image
 VERSION="0.7.0"
 
 def load_file(infile):
+	src = 'file'
 	name = os.path.splitext(basename(infile))[0]
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
+	fmt = None
+	title = None
+	artist = None
+	date = None
+	album = None
+	track = None
 	bps = '1411 kbps'
 	tmpfile = None
 	if ext != "wav":
@@ -73,16 +80,48 @@ def load_file(infile):
 				stderr=subprocess.STDOUT
 			)
 			infile = tmpfile
+			print output
 			for line in output.splitlines():
-				match = re.match('.*Stream.*?Audio: (.*?),.*, (\d*?) kb/s', line)
+				match = re.match('^Output.*', line)
 				if match:
-					fmt, bps = match.group(1, 2)
-					bps = bps + ' kbps'
+					print "Parsed metadata"
 					break
+				match = re.match('^Input.*?, (.*?),.*', line, flags=re.I)
+				if match:
+					print "fmt", match.groups()
+					fmt = match.group(1)
+				match = re.match('\s*title\s*?: (.*)', line, flags=re.I)
+				if match:
+					print "title", match.groups()
+					title = match.group(1)
+				match = re.match('\s*artist\s*?: (.*)', line, flags=re.I)
+				if match:
+					print "artist", match.groups()
+					artist = match.group(1)
+				match = re.match('\s*album\s*?: (.*)', line, flags=re.I)
+				if match:
+					print "album", match.groups()
+					album = match.group(1)
+				match = re.match('\s*track\s*?: (.*)', line, flags=re.I)
+				if match:
+					print "track", match.groups()
+					track = match.group(1)
+				match = re.match('\s*date\s*?: (.*)', line, flags=re.I)
+				if match:
+					print "date", match.groups()
+					date = match.group(1)
+				match = re.match('\s*Duration:.*bitrate: (\d*?) kb/s', line)
+				if match:
+					print "bps", match.groups()
+					bps = match.group(1) + ' kbps'
+				match = re.match('\s*Stream.*?Audio: (.*?),.*, (\d*?) kb/s', line)
+				if match:
+					print "fmt, bps", match.groups()
+					stream_fmt, bps = match.group(1, 2)
+					bps = bps + ' kbps'
 		except CalledProcessError as e:
 			print 'Could not convert %s' % infile
 			return e.retval
-
 	fs, raw_data = wavfile.read(infile)
 	nc = raw_data.shape[1]
 	enc = str(raw_data.dtype)
@@ -93,16 +132,16 @@ def load_file(infile):
 		if enc.find(str(b)) > -1:
 			bits = b
 			break
-
 	raw_data = raw_data.swapaxes(0,1)
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.remove(tmpfile)
 
-	#bps = '1411 kbps'
-
-
+	if not fmt:
+		fmt = ext
+	if artist and title:
+		name = '%s - %s' % (artist, title)
 	# Raw data, float data, frames, samplerate, channels, bitdepth, duration
 	#return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
 	return {
@@ -116,8 +155,16 @@ def load_file(infile):
 		'bitdepth': bits,
 		'duration': sec,
 		'metadata': {
-			'filename': name,
+			'source': src,
+			'filename': basename(infile),
 			'extension': ext,
+			'format': fmt,
+			'name': name,
+			'artist': artist,
+			'title': title,
+			'album': album,
+			'track': track,
+			'date': date,
 			'bps': bps
 		}
 	}
@@ -625,7 +672,7 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 	elif not outfile:
 		outfile = "%s-pymasvis.png" % infile
 	if not header:
-		header = "%s (%s) (%s)" % (track['metadata']['filename'], track['metadata']['extension'], track['metadata']['bps'])
+		header = "%s" % (track['metadata']['name'])
 	analysis = analyze(track)
 	picture = render(track, analysis, header)
 	img = Image.open(picture)
