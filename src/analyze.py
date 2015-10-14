@@ -362,12 +362,25 @@ def render(track, analysis, header):
 	print "Drawing plot..."
 	c_color = ['b', 'r']
 	c_name = ['left', 'right']
-	fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
-	fig.suptitle(header, fontsize='medium') #fontweight='bold')
-	fig.text(0.095, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
-	fig.text(0.95, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+	subtitle1 = 'Encoding: %s  Bitrate: %s  Source: %s' % (track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'])
+	subtitle2 = []
+	if track['metadata']['album']:
+		subtitle2.append('Album: %s' % track['metadata']['album'])
+	if track['metadata']['track']:
+		subtitle2.append('Track: %s' % track['metadata']['track'])
+	if track['metadata']['date']:
+		subtitle2.append('Date: %s' % track['metadata']['date'])
+	subtitle2 = '  '.join(subtitle2)
+	dpi = 72
+	#fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
+	fig = plt.figure(figsize=(606.0/dpi, 946.0/dpi), facecolor='white', dpi=dpi)
+	fig.suptitle(header, fontsize='medium')
+	fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
+	fig.text(0.5, 0.93, subtitle2, fontsize='small', horizontalalignment='center')
+	fig.text(0.075, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
+	fig.text(0.975, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 	rc('lines', linewidth=0.5, antialiased=True)
-	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.1, right=0.95, bottom=0.04, top=0.94)
+	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.04, top=0.90)
 
 	# Left channel
 	data = track['data']['float']
