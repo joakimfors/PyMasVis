@@ -7,7 +7,8 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 - NumPy
 - SciPy
 - Matplotlib
-- pyspotify
+- Pillow or PIL
+- (pyspotify)
 
 FFmpeg is required for anything other than WAV files.
 
@@ -16,7 +17,8 @@ FFmpeg is required for anything other than WAV files.
 	pip install numpy
 	pip install scipy
 	pip install matplotlib
-	pip install pyspotify
+	pip install pillow
+	(pip install pyspotify)
 
 scipy requires ATLAS/BLAS/LAPACK. Fortran compiler (gfortran).
 
