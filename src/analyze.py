@@ -42,7 +42,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.8.0"
+VERSION="0.9.0"
 
 def load_file(infile):
 	src = 'file'
