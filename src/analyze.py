@@ -171,39 +171,9 @@ def load_file(infile):
 
 
 def load_spotify(link, username, password):
-	dumper = DumpManager(username, password, link, 320)
-	dumper.dump()
-
-	name = dumper.trackname
-	ext = 'spotify ogg'
-	bps = '320 kbps'
-	fs = dumper.sample_rate
-	nc = dumper.channels
-	nf = dumper.frames
-	sec = nf/fs
-	bits = 16
-
-	raw_data = dumper.get_nparray()
-	data = raw_data.astype('float')
-	data /= 2**(bits-1)
-
-	#return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
-	return {
-		'data': {
-			'fixed': raw_data,
-			'float': data
-		},
-		'frames': nf,
-		'samplerate': fs,
-		'channels': nc,
-		'bitdepth': bits,
-		'duration': sec,
-		'metadata': {
-			'filename': name,
-			'extension': ext,
-			'bps': bps
-		}
-	}
+	dumper = SpotiDump(username, password)
+	track = dumper.dump(link)
+	return track
 
 
 def analyze(track):
@@ -704,7 +674,7 @@ if __name__ == "__main__":
 		op.error("Missing spotify link")
 	filename = args[0]
 	if filename.startswith('spotify:'):
-		from spotidump import DumpManager
+		from spotidump import SpotiDump
 	if not os.path.isfile(filename) and not filename.startswith('spotify:'):
 		print "File %s not found" % filename
 		exit(1)
