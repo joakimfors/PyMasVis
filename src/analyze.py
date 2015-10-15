@@ -335,7 +335,7 @@ def render(track, analysis, header):
 	subtitle1 = 'Encoding: %s  Bitrate: %s  Source: %s' % (track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'])
 	subtitle2 = []
 	if track['metadata']['album']:
-		subtitle2.append('Album: %s' % track['metadata']['album'])
+		subtitle2.append('Album: %.*s' % (50, track['metadata']['album']))
 	if track['metadata']['track']:
 		subtitle2.append('Track: %s' % track['metadata']['track'])
 	if track['metadata']['date']:
