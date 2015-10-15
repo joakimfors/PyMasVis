@@ -648,10 +648,9 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		loader = load_spotify
 		loader_args = [infile, username, password]
 		spotify = True
-	#raw_data, data, nf, fs, nc, bits, sec, name, ext, bps = loader(*loader_args)
 	track = loader(*loader_args)
 	if not outfile and spotify:
-		outfile = "%s.spotify-pymasvis.png" % name
+		outfile = "%s.spotify-pymasvis.png" % track['metadata']['name']
 	elif not outfile:
 		outfile = "%s-pymasvis.png" % infile
 	if not header:
