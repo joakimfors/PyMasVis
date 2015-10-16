@@ -635,7 +635,6 @@ def rolling_window(a, window):
 
 
 def run(infile, outfile=None, header=None, username=None, password=None):
-	print 'Here I analyze', os.getcwd(), __file__
 	loader = None
 	loader_args = []
 	spotify = False
