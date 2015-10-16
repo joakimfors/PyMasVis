@@ -644,6 +644,7 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		loader = load_file
 		loader_args = [infile]
 	elif infile.startswith('spotify:'):
+		from spotidump import SpotiDump
 		print "Selecting Spotify loader"
 		loader = load_spotify
 		loader_args = [infile, username, password]
@@ -664,21 +665,27 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 
 if __name__ == "__main__":
 	import optparse
+	import glob
 	usage = "usage: %prog [options] arg"
 	op = optparse.OptionParser(usage)
 	op.add_option("-u", "--username", help="Spotify username")
 	op.add_option("-p", "--password", help="Spotify password")
 	(options, args) = op.parse_args()
-	if len(args) != 1:
-		op.error("Missing spotify link")
-	filename = args[0]
-	if filename.startswith('spotify:'):
-		from spotidump import SpotiDump
-	if not os.path.isfile(filename) and not filename.startswith('spotify:'):
-		print "File %s not found" % filename
-		exit(1)
+	if len(args) == 0:
+		op.print_help()
+		exit(0)
+	candidates = []
+	for arg in args:
+		if arg.startswith('spotify:'):
+			candidates.append(arg)
+			continue
+		for filename in glob.glob(os.path.expanduser(arg)):
+			candidates.append(filename)
 	language, encoding = locale.getdefaultlocale()
-	infile = filename.decode(encoding)
-	outfile = None #"%s-%s" % (filename, 'pymasvis.png')
-	name = None #basename(filename)
-	run(infile, outfile, name, options.username, options.password)
+	if len(candidates) == 0:
+		print "No valid candidates for analysation found: " + " ".join(args)
+	for candidate in candidates:
+		infile = candidate.decode(encoding)
+		outfile = None
+		name = None
+		run(infile, outfile, name, options.username, options.password)
