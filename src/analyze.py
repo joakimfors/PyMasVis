@@ -136,6 +136,7 @@ def load_file(infile):
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
+		os.close(tmpfd)
 		os.remove(tmpfile)
 
 	if not fmt:
