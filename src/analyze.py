@@ -121,7 +121,7 @@ def load_file(infile):
 					bps = bps + ' kbps'
 		except CalledProcessError as e:
 			print 'Could not convert %s' % infile
-			return e.retval
+			exit(e.returncode)
 	fs, raw_data = wavfile.read(infile)
 	nc = raw_data.shape[1]
 	enc = str(raw_data.dtype)
