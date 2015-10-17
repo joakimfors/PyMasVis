@@ -644,7 +644,6 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		loader = load_file
 		loader_args = [infile]
 	elif infile.startswith('spotify:'):
-		from spotidump import SpotiDump
 		print "Selecting Spotify loader"
 		loader = load_spotify
 		loader_args = [infile, username, password]
@@ -677,6 +676,7 @@ if __name__ == "__main__":
 	candidates = []
 	for arg in args:
 		if arg.startswith('spotify:'):
+			from spotidump import SpotiDump
 			candidates.append(arg)
 			continue
 		for filename in glob.glob(os.path.expanduser(arg)):
