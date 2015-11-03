@@ -342,7 +342,6 @@ def render(track, analysis, header):
 		subtitle2.append('Date: %s' % track['metadata']['date'])
 	subtitle2 = '  '.join(subtitle2)
 	dpi = 72
-	#fig = plt.figure(figsize=(8.3, 11.7), facecolor='white', dpi=74)
 	fig = plt.figure(figsize=(606.0/dpi, 946.0/dpi), facecolor='white', dpi=dpi)
 	fig.suptitle(header, fontsize='medium')
 	fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
@@ -433,7 +432,7 @@ def render(track, analysis, header):
 	new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
 	semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
 	new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-	semilogx(new_r/1000.0, new_spec, 'r-', basex=10) # must sample log10icaly
+	semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
 	ylim(-90, -10)
 	xlim(0.02, 20)
 	ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
@@ -482,10 +481,8 @@ def render(track, analysis, header):
 	ylim(1,50000)
 	xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
 	yticks([10, 100, 1000], (10, 100, 1000))
-	#ax_hist.set_xticklabels((1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1), minor=False)
 	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
 	ylabel('n', fontsize='small', rotation=0)
-	#ax_hist.set_yticklabels(('', '', 10, 100, 1000), minor=False)
 	axis_defaults(ax_hist)
 
 	# Peak vs RMS
