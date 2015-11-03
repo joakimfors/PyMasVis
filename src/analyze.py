@@ -23,6 +23,8 @@ import locale
 import subprocess
 import math
 import re
+import time
+import logging
 import numpy as np
 import scipy as sp
 import matplotlib
@@ -43,6 +45,21 @@ from PIL import Image
 
 
 VERSION="0.9.2"
+
+class Timer(object):
+	def __init__(self, verbose=False):
+		self.verbose = verbose
+
+	def __enter__(self):
+		self.start = time.time()
+		return self
+
+	def __exit__(self, *args):
+		self.end = time.time()
+		self.secs = self.end - self.start
+		self.msecs = self.secs * 1000  # millisecs
+		if self.verbose:
+			print '  %f ms' % self.msecs
 
 def load_file(infile):
 	src = 'file'
@@ -191,103 +208,110 @@ def analyze(track):
 	print "\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tformat: %s\n\tbitrate: %s" % (fs, nc, nf, bits, ext, bps)
 
 	# Peak / RMS
-	print 'Calculating peak and RMS...'
-	data_rms = rms(data, 1)
-	data_peak = np.abs(data).max(1)
+	with Timer(True) as t:
+		print 'Calculating peak and RMS...'
+		data_rms = rms(data, 1)
+		data_peak = np.abs(data).max(1)
 
-	# Peak dBFS
-	peak_dbfs = db(data_peak, 1.0)
+		# Peak dBFS
+		peak_dbfs = db(data_peak, 1.0)
 
-	# RMS dBFS
-	rms_dbfs = db(data_rms, 1.0)
+		# RMS dBFS
+		rms_dbfs = db(data_rms, 1.0)
 
-	# Crest dB
-	crest_db = db(data_peak, data_rms)
+		# Crest dB
+		crest_db = db(data_peak, data_rms)
 
 	# Loudest
-	print 'Calculating loudest...'
-	window = int(fs / 50)
-	peak = data_peak.max()
-	sn_max = 0
-	pos_max = 0
-	c_max = 0
-	sn_cur = 0
-	c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
-	for c in range(nc):
-		# Find the indices where the sample value is 95% of track peak value
-		peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
-		if len(peaks) == 0:
-			continue
-		nf_cur = 0
-		it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
-		for e in it:
-			i = it.iterindex
-			# Count the number of samples (indices) within the window
-			nf_cur = (peaks[i:i+window] < e + window).sum()
-			if nf_cur > nf_max:
-				c_max = c
-				nf_max = nf_cur
-				f_max = e
-	w_max = (f_max - fs/20, f_max + fs/20)
-	if w_max[0] < 0:
-		w_max = (0, fs/10)
-	if w_max[1] > nf:
-		w_max = (nf - fs/10, nf)
+	with Timer(True) as t:
+		print 'Calculating loudest...'
+		window = int(fs / 50)
+		peak = data_peak.max()
+		sn_max = 0
+		pos_max = 0
+		c_max = 0
+		sn_cur = 0
+		c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
+		for c in range(nc):
+			# Find the indices where the sample value is 95% of track peak value
+			peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
+			if len(peaks) == 0:
+				continue
+			nf_cur = 0
+			it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
+			for e in it:
+				i = it.iterindex
+				# Count the number of samples (indices) within the window
+				nf_cur = (peaks[i:i+window] < e + window).sum()
+				if nf_cur > nf_max:
+					c_max = c
+					nf_max = nf_cur
+					f_max = e
+		w_max = (f_max - fs/20, f_max + fs/20)
+		if w_max[0] < 0:
+			w_max = (0, fs/10)
+		if w_max[1] > nf:
+			w_max = (nf - fs/10, nf)
 
 	# Spectrum
-	print 'Calculating spectrum...'
-	frames = nf/fs
-	wfunc = np.blackman(fs)
-	norm_spec = np.zeros((nc,fs))
-	for c in range(nc):
-		for i in np.arange(0, frames*fs, fs):
-			norm_spec[c] += (np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))/fs)**2
-		norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
+	with Timer(True) as t:
+		print 'Calculating spectrum...'
+		frames = nf/fs
+		wfunc = np.blackman(fs)
+		norm_spec = np.zeros((nc,fs))
+		for c in range(nc):
+			for i in np.arange(0, frames*fs, fs):
+				norm_spec[c] += (np.abs(np.fft.fft(np.multiply(data[c,i:i+fs], wfunc), fs))/fs)**2
+			norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
 
 	# Allpass
-	print 'Calculating allpass...'
-	ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
-	ap_crest = np.zeros((len(ap_freqs),nc))
-	ap_rms = np.zeros((len(ap_freqs),nc))
-	ap_peak = np.zeros((len(ap_freqs),nc))
-	for i in range(len(ap_freqs)):
-		fc = ap_freqs[i]
-		b, a = allpass(fc, fs)
-		y = signal.lfilter(b, a, data, 1)
-		ap_peak[i] = y.max(1)
-		ap_rms[i] = rms(y, 1)
-		ap_crest[i] = db(ap_peak[i], ap_rms[i])
+	with Timer(True) as t:
+		print 'Calculating allpass...'
+		ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
+		ap_crest = np.zeros((len(ap_freqs),nc))
+		ap_rms = np.zeros((len(ap_freqs),nc))
+		ap_peak = np.zeros((len(ap_freqs),nc))
+		for i in range(len(ap_freqs)):
+			fc = ap_freqs[i]
+			b, a = allpass(fc, fs)
+			y = signal.lfilter(b, a, data, 1)
+			ap_peak[i] = y.max(1)
+			ap_rms[i] = rms(y, 1)
+			ap_crest[i] = db(ap_peak[i], ap_rms[i])
 
 	# Histogram
-	print 'Calculating histogram...'
-	hbits = bits
-	if bits > 16:
-		hbits = 16
-	hist = np.zeros((nc, 2**hbits))
-	hist_bins = np.zeros((nc, 2**hbits+1))
-	for c in range(nc):
-		hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits, range=(-2.0**(hbits-1), 2.0**(hbits-1)-1))
-	hist_bits = np.log2((hist > 0).sum(1))
-	if bits > hbits:
-		hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
+	with Timer(True) as t:
+		print 'Calculating histogram...'
+		hbits = bits
+		if bits > 16:
+			hbits = 16
+		hist = np.zeros((nc, 2**hbits))
+		hist_bins = np.zeros((nc, 2**hbits+1))
+		for c in range(nc):
+			hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits, range=(-2.0**(hbits-1), 2.0**(hbits-1)-1))
+		hist_bits = np.log2((hist > 0).sum(1))
+		if bits > hbits:
+			hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
 
 	# Peak vs RMS
-	print 'Calculating peak vs RMS...'
-	n_1s = nf/fs
-	peak_1s_dbfs = np.zeros((nc, n_1s))
-	rms_1s_dbfs = np.zeros((nc, n_1s))
-	crest_1s_db = np.zeros((nc, n_1s))
-	#print n_1s
-	for c in range(nc):
-		for i in range(n_1s):
-			a = data[c,i*fs:(i+1)*fs].max()
-			b = rms(data[c,i*fs:(i+1)*fs])
-			peak_1s_dbfs[c][i] = db(a, 1.0)
-			rms_1s_dbfs[c][i] = db(b, 1.0)
-			crest_1s_db[c][i] = db(a, b)
+	with Timer(True) as t:
+		print 'Calculating peak vs RMS...'
+		n_1s = nf/fs
+		peak_1s_dbfs = np.zeros((nc, n_1s))
+		rms_1s_dbfs = np.zeros((nc, n_1s))
+		crest_1s_db = np.zeros((nc, n_1s))
+		#print n_1s
+		for c in range(nc):
+			for i in range(n_1s):
+				a = data[c,i*fs:(i+1)*fs].max()
+				b = rms(data[c,i*fs:(i+1)*fs])
+				peak_1s_dbfs[c][i] = db(a, 1.0)
+				rms_1s_dbfs[c][i] = db(b, 1.0)
+				crest_1s_db[c][i] = db(a, b)
 
-	print 'Calculating checksum...'
-	checksum = (raw_data.astype('uint32')**2).sum()
+	with Timer(True) as t:
+		print 'Calculating checksum...'
+		checksum = (raw_data.astype('uint32')**2).sum()
 
 	#
 	return {
@@ -329,27 +353,28 @@ def render(track, analysis, header):
 	# Plot
 	#
 	checksum = analysis['checksum']
-	print "Drawing plot..."
-	c_color = ['b', 'r']
-	c_name = ['left', 'right']
-	subtitle1 = 'Encoding: %s  Bitrate: %s  Source: %s' % (track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'])
-	subtitle2 = []
-	if track['metadata']['album']:
-		subtitle2.append('Album: %.*s' % (50, track['metadata']['album']))
-	if track['metadata']['track']:
-		subtitle2.append('Track: %s' % track['metadata']['track'])
-	if track['metadata']['date']:
-		subtitle2.append('Date: %s' % track['metadata']['date'])
-	subtitle2 = '  '.join(subtitle2)
-	dpi = 72
-	fig = plt.figure(figsize=(606.0/dpi, 946.0/dpi), facecolor='white', dpi=dpi)
-	fig.suptitle(header, fontsize='medium')
-	fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
-	fig.text(0.5, 0.93, subtitle2, fontsize='small', horizontalalignment='center')
-	fig.text(0.075, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
-	fig.text(0.975, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
-	rc('lines', linewidth=0.5, antialiased=True)
-	gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.04, top=0.90)
+	with Timer(True) as t:
+		print "Drawing plot..."
+		c_color = ['b', 'r']
+		c_name = ['left', 'right']
+		subtitle1 = 'Encoding: %s  Bitrate: %s  Source: %s' % (track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'])
+		subtitle2 = []
+		if track['metadata']['album']:
+			subtitle2.append('Album: %.*s' % (50, track['metadata']['album']))
+		if track['metadata']['track']:
+			subtitle2.append('Track: %s' % track['metadata']['track'])
+		if track['metadata']['date']:
+			subtitle2.append('Date: %s' % track['metadata']['date'])
+		subtitle2 = '  '.join(subtitle2)
+		dpi = 72
+		fig = plt.figure(figsize=(606.0/dpi, 946.0/dpi), facecolor='white', dpi=dpi)
+		fig.suptitle(header, fontsize='medium')
+		fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
+		fig.text(0.5, 0.93, subtitle2, fontsize='small', horizontalalignment='center')
+		fig.text(0.075, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
+		fig.text(0.975, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+		rc('lines', linewidth=0.5, antialiased=True)
+		gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.04, top=0.90)
 
 	# Left channel
 	data = track['data']['float']
@@ -360,180 +385,190 @@ def render(track, analysis, header):
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
 	fs = track['samplerate']
-	print "Drawing left channel..."
-	ax_lch = subplot(gs[0,:])
-	new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
-	new_fs = new_nf/float(sec)
-	new_range = np.arange(0.0, new_nf, 1)/new_fs
-	plot(new_range, new_data, 'b-')
-	xlim(0, sec)
-	ylim(-1.0, 1.0)
-	title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small', loc='left')
-	setp(ax_lch.get_xticklabels(), visible=False)
-	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	if c_max == 0:
-		mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
+	with Timer(True) as t:
+		print "Drawing left channel..."
+		ax_lch = subplot(gs[0,:])
+		new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
+		new_fs = new_nf/float(sec)
+		new_range = np.arange(0.0, new_nf, 1)/new_fs
+		plot(new_range, new_data, 'b-')
+		xlim(0, sec)
+		ylim(-1.0, 1.0)
+		title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small', loc='left')
+		setp(ax_lch.get_xticklabels(), visible=False)
+		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+		if c_max == 0:
+			mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
 
 	# Right channel
-	print "Drawing right channel..."
-	ax_rch = subplot(gs[1,:], sharex=ax_lch)
-	new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
-	new_fs = new_nf/float(sec)
-	new_range = np.arange(0.0, new_nf, 1)/new_fs
-	plot(new_range, new_data, 'r-')
-	xlim(0, sec)
-	ylim(-1.0, 1.0)
-	title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small', loc='left')
-	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
-	ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-	xlabel('s', fontsize='small')
-	if c_max == 1:
-		mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
-	axis_defaults(ax_lch)
-	axis_defaults(ax_rch)
+	with Timer(True) as t:
+		print "Drawing right channel..."
+		ax_rch = subplot(gs[1,:], sharex=ax_lch)
+		new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
+		new_fs = new_nf/float(sec)
+		new_range = np.arange(0.0, new_nf, 1)/new_fs
+		plot(new_range, new_data, 'r-')
+		xlim(0, sec)
+		ylim(-1.0, 1.0)
+		title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small', loc='left')
+		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+		ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
+		ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+		xlabel('s', fontsize='small')
+		if c_max == 1:
+			mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
+		axis_defaults(ax_lch)
+		axis_defaults(ax_rch)
 
 	# Loudest
 	f_max = analysis['f_max']
 	nf_max = analysis['nf_max']
-	print "Drawing loudest..."
-	ax_max = subplot(gs[2,:])
-	plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
-	ylim(-1.0, 1.0)
-	xlim(w_max[0]/float(fs), w_max[1]/float(fs))
-	title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small', loc='left')
-	yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-	ax_max.xaxis.set_major_locator(MaxNLocatorMod(nbins=5, prune='both'))
-	ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
-	xlabel('s', fontsize='small')
-	axis_defaults(ax_max)
+	with Timer(True) as t:
+		print "Drawing loudest..."
+		ax_max = subplot(gs[2,:])
+		plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
+		ylim(-1.0, 1.0)
+		xlim(w_max[0]/float(fs), w_max[1]/float(fs))
+		title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small', loc='left')
+		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+		ax_max.xaxis.set_major_locator(MaxNLocatorMod(nbins=5, prune='both'))
+		ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
+		xlabel('s', fontsize='small')
+		axis_defaults(ax_max)
 
 	# Spectrum
 	norm_spec = analysis['norm_spec']
 	frames = analysis['frames']
-	print "Drawing spectrum..."
-	ax_norm = subplot(gs[3,0])
-	semilogx(
-		[0.02, 0.06], [-80, -90], 'k-',
-		[0.02,  0.2], [-70, -90], 'k-',
-		[0.02,  0.6], [-60, -90], 'k-',
-		[0.02,  2  ], [-50, -90], 'k-',
-		[0.02,  6  ], [-40, -90], 'k-',
-		[0.02, 20  ], [-30, -90], 'k-',
-		[0.02, 20  ], [-20, -80], 'k-',
-		[0.02, 20  ], [-10, -70], 'k-',
-		[0.06, 20  ], [-10, -60], 'k-',
-		[0.2 , 20  ], [-10, -50], 'k-',
-		[0.6 , 20  ], [-10, -40], 'k-',
-		[2   , 20  ], [-10, -30], 'k-',
-		[6   , 20  ], [-10, -20], 'k-',
-		basex=10
-	)
-	new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-	semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
-	new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-	semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
-	ylim(-90, -10)
-	xlim(0.02, 20)
-	ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
-	ax_norm.xaxis.grid(True, which='both', linestyle='-', color='k', linewidth=0.5)
-	ylabel('dB', fontsize='small', verticalalignment='top', rotation=0)
-	xlabel('kHz', fontsize='small', horizontalalignment='right')
-	title("Normalized average spectrum, %d frames" % (frames), fontsize='small', loc='left')
-	ax_norm.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
-	ax_norm.set_xticks([0.03, 0.04, 0.06, 0.07, 0.08, 0.09, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 6, 8, 9, 10], minor=True)
-	ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7])
-	yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', 'dB'))
-	axis_defaults(ax_norm)
+	with Timer(True) as t:
+		print "Drawing spectrum..."
+		ax_norm = subplot(gs[3,0])
+		semilogx(
+			[0.02, 0.06], [-80, -90], 'k-',
+			[0.02,  0.2], [-70, -90], 'k-',
+			[0.02,  0.6], [-60, -90], 'k-',
+			[0.02,  2  ], [-50, -90], 'k-',
+			[0.02,  6  ], [-40, -90], 'k-',
+			[0.02, 20  ], [-30, -90], 'k-',
+			[0.02, 20  ], [-20, -80], 'k-',
+			[0.02, 20  ], [-10, -70], 'k-',
+			[0.06, 20  ], [-10, -60], 'k-',
+			[0.2 , 20  ], [-10, -50], 'k-',
+			[0.6 , 20  ], [-10, -40], 'k-',
+			[2   , 20  ], [-10, -30], 'k-',
+			[6   , 20  ], [-10, -20], 'k-',
+			basex=10
+		)
+		new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+		semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
+		new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+		semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
+		ylim(-90, -10)
+		xlim(0.02, 20)
+		ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+		ax_norm.xaxis.grid(True, which='both', linestyle='-', color='k', linewidth=0.5)
+		ylabel('dB', fontsize='small', verticalalignment='top', rotation=0)
+		xlabel('kHz', fontsize='small', horizontalalignment='right')
+		title("Normalized average spectrum, %d frames" % (frames), fontsize='small', loc='left')
+		ax_norm.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
+		ax_norm.set_xticks([0.03, 0.04, 0.06, 0.07, 0.08, 0.09, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 6, 8, 9, 10], minor=True)
+		ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7])
+		yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', 'dB'))
+		axis_defaults(ax_norm)
 
 	# Allpass
 	ap_freqs = analysis['ap_freqs']
 	ap_crest = analysis['ap_crest']
-	print "Drawing allpass..."
-	ax_ap = subplot(gs[3,1])
-	semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
-	semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
-	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10)
-	semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
-	ylim(0,30)
-	xlim(0.02, 20)
-	title("Allpassed crest factor", fontsize='small', loc='left')
-	yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, ''))
-	xticks([0.1, 1, 2], (0.1, 1, 2))
-	xlabel('kHz', fontsize='small')
-	ylabel('dB', fontsize='small', rotation=0)
-	axis_defaults(ax_ap)
+	with Timer(True) as t:
+		print "Drawing allpass..."
+		ax_ap = subplot(gs[3,1])
+		semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
+		semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
+		semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10)
+		semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
+		ylim(0,30)
+		xlim(0.02, 20)
+		title("Allpassed crest factor", fontsize='small', loc='left')
+		yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, ''))
+		xticks([0.1, 1, 2], (0.1, 1, 2))
+		xlabel('kHz', fontsize='small')
+		ylabel('dB', fontsize='small', rotation=0)
+		axis_defaults(ax_ap)
 
 	# Histogram
 	hist = analysis['hist']
 	hist_bits = analysis['hist_bits']
-	print "Drawing histogram..."
-	ax_hist = subplot(gs[4,0])
-	new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
-	new_hist[(new_hist == 1.0)] = 1.3
-	new_hist[(new_hist < 1.0)] = 1.0
-	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
-	new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
-	new_hist[(new_hist == 1.0)] = 1.3
-	new_hist[(new_hist < 1.0)] = 1.0
-	semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
-	xlim(-1.1, 1.1)
-	ylim(1,50000)
-	xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
-	yticks([10, 100, 1000], (10, 100, 1000))
-	title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
-	ylabel('n', fontsize='small', rotation=0)
-	axis_defaults(ax_hist)
+	with Timer(True) as t:
+		print "Drawing histogram..."
+		ax_hist = subplot(gs[4,0])
+		new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
+		new_hist[(new_hist == 1.0)] = 1.3
+		new_hist[(new_hist < 1.0)] = 1.0
+		semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
+		new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
+		new_hist[(new_hist == 1.0)] = 1.3
+		new_hist[(new_hist < 1.0)] = 1.0
+		semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
+		xlim(-1.1, 1.1)
+		ylim(1,50000)
+		xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
+		yticks([10, 100, 1000], (10, 100, 1000))
+		title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
+		ylabel('n', fontsize='small', rotation=0)
+		axis_defaults(ax_hist)
 
 	# Peak vs RMS
 	rms_1s_dbfs = analysis['rms_1s_dbfs']
 	peak_1s_dbfs = analysis['peak_1s_dbfs']
-	print "Drawing peak vs RMS..."
-	ax_pr = subplot(gs[4,1])
-	plot(
-		[-50,    0], [-50, 0], 'k-',
-		[-50,  -10], [-40, 0], 'k-',
-		[-50,  -20], [-30, 0], 'k-',
-		[-50,  -30], [-20, 0], 'k-',
-		[-50,  -40], [-10, 0], 'k-',
-	)
-	text(-48, -45, '0 dB', fontsize='x-small', rotation=45, va='bottom', ha='left')
-	text(-48, -35, '10', fontsize='x-small', rotation=45, va='bottom', ha='left')
-	text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
-	text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
-	text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
-	plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-	plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
-	xlim(-50, 0)
-	ylim(-50, 0)
-	title("Peak vs RMS level", fontsize='small', loc='left')
-	xlabel('dBFS', fontsize='small')
-	ylabel('dBFS', fontsize='small', rotation=0)
-	xticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, '', ''))
-	yticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, -10, ''))
-	axis_defaults(ax_pr)
+	with Timer(True) as t:
+		print "Drawing peak vs RMS..."
+		ax_pr = subplot(gs[4,1])
+		plot(
+			[-50,    0], [-50, 0], 'k-',
+			[-50,  -10], [-40, 0], 'k-',
+			[-50,  -20], [-30, 0], 'k-',
+			[-50,  -30], [-20, 0], 'k-',
+			[-50,  -40], [-10, 0], 'k-',
+		)
+		text(-48, -45, '0 dB', fontsize='x-small', rotation=45, va='bottom', ha='left')
+		text(-48, -35, '10', fontsize='x-small', rotation=45, va='bottom', ha='left')
+		text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
+		text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
+		text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
+		plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
+		plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		xlim(-50, 0)
+		ylim(-50, 0)
+		title("Peak vs RMS level", fontsize='small', loc='left')
+		xlabel('dBFS', fontsize='small')
+		ylabel('dBFS', fontsize='small', rotation=0)
+		xticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, '', ''))
+		yticks([-50, -40, -30, -20, -10, 0], ('', -40, -30, -20, -10, ''))
+		axis_defaults(ax_pr)
 
 	# Shortterm crest
 	crest_1s_db = analysis['crest_1s_db']
 	n_1s = analysis['n_1s']
-	print "Drawing short term crest..."
-	ax_1s = subplot(gs[5,:])
-	plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-	plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
-	ylim(0,30)
-	xlim(0,n_1s)
-	yticks([10, 20], (10,))
-	ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
-	title("Short term (1 s) crest factor", fontsize='small', loc='left')
-	xlabel('s', fontsize='small')
-	ylabel('dB', fontsize='small', rotation=0)
-	ax_1s.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
-	ax_1s.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-	axis_defaults(ax_1s)
+	with Timer(True) as t:
+		print "Drawing short term crest..."
+		ax_1s = subplot(gs[5,:])
+		plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
+		plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		ylim(0,30)
+		xlim(0,n_1s)
+		yticks([10, 20], (10,))
+		ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+		title("Short term (1 s) crest factor", fontsize='small', loc='left')
+		xlabel('s', fontsize='small')
+		ylabel('dB', fontsize='small', rotation=0)
+		ax_1s.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
+		ax_1s.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+		axis_defaults(ax_1s)
 
 	# Save
-	f = io.BytesIO()
-	plt.savefig(f, format='png', dpi=dpi, transparent=False)
+	with Timer(True) as t:
+		print "Saving..."
+		f = io.BytesIO()
+		plt.savefig(f, format='png', dpi=dpi, transparent=False)
 	return f
 
 
