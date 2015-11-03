@@ -260,6 +260,18 @@ def analyze(track):
 		if w_max[1] > nf:
 			w_max = (nf - fs/10, nf)
 
+	with Timer(True) as t:
+		print 'Calculating true peak...'
+		fir_phases = np.array(FIR)
+		print 'Data peak', data_peak
+		true_peak = np.copy(data_peak)
+		for c in range(nc):
+			for i in range(len(data[c])-24):
+				peak = np.abs(np.dot(fir_phases, data[c][i:i+24])).max()
+				if peak > true_peak[c]:
+					true_peak[c] = peak
+		print 'True peaks', true_peak
+
 	# EBU R.128
 	with Timer(True) as t:
 		print 'Calculating EBU R 128...'
