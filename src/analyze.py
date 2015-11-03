@@ -73,7 +73,7 @@ def load_file(infile):
 			print "Could not find ffmpeg"
 			return 1
 		print "Converting using ffmpeg"
-		tmpfd, tmpfile = mkstemp(suffix='.wav') #"%s.%s" % (os.tempnam(), 'wav')
+		tmpfd, tmpfile = mkstemp(suffix='.wav')
 		try:
 			output = subprocess.check_output(
 				[ffmpeg_bin, '-y', '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
@@ -143,8 +143,6 @@ def load_file(infile):
 		fmt = ext
 	if artist and title:
 		name = '%s - %s' % (artist, title)
-	# Raw data, float data, frames, samplerate, channels, bitdepth, duration
-	#return (raw_data, data, nf, fs, nc, bits, sec, name, ext, bps)
 	return {
 		'data': {
 			'fixed': raw_data,
@@ -194,17 +192,17 @@ def analyze(track):
 
 	# Peak / RMS
 	print 'Calculating peak and RMS...'
-	data_rms = rms(data, 1) # [np.sqrt(np.mean(data[0]**2)), np.sqrt(np.mean(data[1]**2))]
+	data_rms = rms(data, 1)
 	data_peak = np.abs(data).max(1)
 
 	# Peak dBFS
-	peak_dbfs = db(data_peak, 1.0) #[ 20*np.log10(np.abs(data[0]).max()), 20*np.log10(np.abs(data[1]).max()) ]
+	peak_dbfs = db(data_peak, 1.0)
 
 	# RMS dBFS
-	rms_dbfs = db(data_rms, 1.0) # [ 20*np.log10(rms[0]), 20*np.log10(rms[1]) ]
+	rms_dbfs = db(data_rms, 1.0)
 
 	# Crest dB
-	crest_db = db(data_peak, data_rms) # [ 20*np.log10(np.abs(data[0]).max() / rms[0]), 20*np.log10(np.abs(data[1]).max() / rms[1]) ]
+	crest_db = db(data_peak, data_rms)
 
 	# Loudest
 	print 'Calculating loudest...'
@@ -223,7 +221,6 @@ def analyze(track):
 		it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
 		for e in it:
 			i = it.iterindex
-			#nf_cur = np.count_nonzero(peaks[i:] < e + window)
 			nf_cur = (peaks[i:i+window] < e + window).sum()
 			if nf_cur > nf_max:
 				c_max = c
