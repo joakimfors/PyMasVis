@@ -260,17 +260,19 @@ def analyze(track):
 		if w_max[1] > nf:
 			w_max = (nf - fs/10, nf)
 
+	# True peak
 	with Timer(True) as t:
 		print 'Calculating true peak...'
 		fir_phases = np.array(FIR)
-		print 'Data peak', data_peak
+		#print 'Data peak', data_peak
 		true_peak = np.copy(data_peak)
 		for c in range(nc):
 			for i in range(len(data[c])-24):
 				peak = np.abs(np.dot(fir_phases, data[c][i:i+24])).max()
 				if peak > true_peak[c]:
 					true_peak[c] = peak
-		print 'True peaks', true_peak
+		#print 'True peaks', true_peak
+		true_peak_dbfs = db(true_peak, 1.0)
 
 	# Spectrum
 	with Timer(True) as t:
@@ -337,6 +339,7 @@ def analyze(track):
 		'crest_db': crest_db,
 		'rms_dbfs': rms_dbfs,
 		'peak_dbfs': peak_dbfs,
+		'true_peak_dbfs': true_peak_dbfs,
 		'c_max': c_max,
 		'w_max': w_max,
 		'f_max': f_max,
@@ -401,6 +404,7 @@ def render(track, analysis, header):
 	crest_db = analysis['crest_db']
 	rms_dbfs = analysis['rms_dbfs']
 	peak_dbfs = analysis['peak_dbfs']
+	true_peak_dbfs = analysis['true_peak_dbfs']
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
 	fs = track['samplerate']
@@ -413,7 +417,7 @@ def render(track, analysis, header):
 		plot(new_range, new_data, 'b-')
 		xlim(0, sec)
 		ylim(-1.0, 1.0)
-		title("Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0]), fontsize='small', loc='left')
+		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True peak≈%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbfs[0]), fontsize='small', loc='left')
 		setp(ax_lch.get_xticklabels(), visible=False)
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		if c_max == 0:
@@ -429,7 +433,7 @@ def render(track, analysis, header):
 		plot(new_range, new_data, 'r-')
 		xlim(0, sec)
 		ylim(-1.0, 1.0)
-		title("Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1]), fontsize='small', loc='left')
+		title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True peak≈%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbfs[1]), fontsize='small', loc='left')
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 		ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
