@@ -214,6 +214,7 @@ def analyze(track):
 	sn_cur = 0
 	c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
 	for c in range(nc):
+		# Find the indices where the sample value is 95% of track peak value
 		peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
 		if len(peaks) == 0:
 			continue
@@ -221,6 +222,7 @@ def analyze(track):
 		it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
 		for e in it:
 			i = it.iterindex
+			# Count the number of samples (indices) within the window
 			nf_cur = (peaks[i:i+window] < e + window).sum()
 			if nf_cur > nf_max:
 				c_max = c
