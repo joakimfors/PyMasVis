@@ -42,7 +42,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.9.1"
+VERSION="0.9.2"
 
 def load_file(infile):
 	src = 'file'
@@ -365,7 +365,7 @@ def render(track, analysis, header):
 	print "Drawing left channel..."
 	ax_lch = subplot(gs[0,:])
 	new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
-	new_fs = new_nf/sec
+	new_fs = new_nf/float(sec)
 	new_range = np.arange(0.0, new_nf, 1)/new_fs
 	plot(new_range, new_data, 'b-')
 	xlim(0, sec)
@@ -380,7 +380,7 @@ def render(track, analysis, header):
 	print "Drawing right channel..."
 	ax_rch = subplot(gs[1,:], sharex=ax_lch)
 	new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
-	new_fs = new_nf/sec
+	new_fs = new_nf/float(sec)
 	new_range = np.arange(0.0, new_nf, 1)/new_fs
 	plot(new_range, new_data, 'r-')
 	xlim(0, sec)
@@ -432,9 +432,9 @@ def render(track, analysis, header):
 		basex=10
 	)
 	new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-	semilogx(new_r/1000, new_spec, 'b-', basex=10)
+	semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
 	new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-	semilogx(new_r/1000, new_spec, 'r-', basex=10) # must sample log10icaly
+	semilogx(new_r/1000.0, new_spec, 'r-', basex=10) # must sample log10icaly
 	ylim(-90, -10)
 	xlim(0.02, 20)
 	ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
