@@ -462,7 +462,7 @@ def render(track, analysis, header):
 		plot(new_range, new_data, 'b-')
 		xlim(0, sec)
 		ylim(-1.0, 1.0)
-		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True peak≈%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbfs[0]), fontsize='small', loc='left')
+		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbfs[0]), fontsize='small', loc='left')
 		setp(ax_lch.get_xticklabels(), visible=False)
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		if c_max == 0:
@@ -478,7 +478,7 @@ def render(track, analysis, header):
 		plot(new_range, new_data, 'r-')
 		xlim(0, sec)
 		ylim(-1.0, 1.0)
-		title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True peak≈%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbfs[1]), fontsize='small', loc='left')
+		title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbfs[1]), fontsize='small', loc='left')
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 		ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
