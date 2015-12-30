@@ -110,15 +110,15 @@ def load_file(infile):
 				match = re.match('\s*title\s*?: (.*)', line, flags=re.I)
 				if match:
 					print "title", match.groups()
-					title = match.group(1)
+					title = match.group(1).decode('utf-8')
 				match = re.match('\s*artist\s*?: (.*)', line, flags=re.I)
 				if match:
 					print "artist", match.groups()
-					artist = match.group(1)
+					artist = match.group(1).decode('utf-8')
 				match = re.match('\s*album\s*?: (.*)', line, flags=re.I)
 				if match:
 					print "album", match.groups()
-					album = match.group(1)
+					album = match.group(1).decode('utf-8')
 				match = re.match('\s*track\s*?: (.*)', line, flags=re.I)
 				if match:
 					print "track", match.groups()
