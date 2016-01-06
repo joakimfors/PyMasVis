@@ -273,7 +273,7 @@ def analyze(track):
 		ap_peak = np.zeros((len(ap_freqs),nc))
 		for i in range(len(ap_freqs)):
 			fc = ap_freqs[i]
-			b, a = allpass(fc, fs)
+			b, a = ap_coeffs(fc, fs)
 			y = signal.lfilter(b, a, data, 1)
 			ap_peak[i] = y.max(1)
 			ap_rms[i] = rms(y, 1)
@@ -653,7 +653,7 @@ def db(a, b):
 	return c
 
 
-def allpass(fc, fs):
+def ap_coeffs(fc, fs):
 	T = 1.0/fs
 	w_b = 2*np.pi*fc
 	p_d = (1 - np.tan(w_b*T/2)) / (1 + np.tan(w_b*T/2))
