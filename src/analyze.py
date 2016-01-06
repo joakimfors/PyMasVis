@@ -654,6 +654,11 @@ def db(a, b):
 
 
 def ap_coeffs(fc, fs):
+	'''
+	Discrete first order allpass
+	https://ccrma.stanford.edu/realsimple/DelayVar/Phasing_First_Order_Allpass_Filters.html
+	http://users.abo.fi/htoivone/courses/sbappl/asp_chapter1.pdf
+
 	T = 1.0/fs
 	w_b = 2*np.pi*fc
 	p_d = (1 - np.tan(w_b*T/2)) / (1 + np.tan(w_b*T/2))
