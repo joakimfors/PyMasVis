@@ -253,6 +253,35 @@ def analyze(track):
 		if w_max[1] > nf:
 			w_max = (nf - fs/10, nf)
 
+	# EBU R.128
+	with Timer(True) as t:
+		print 'Calculating EBU R.128...'
+		g = np.array([1.0, 1.0, 1.0, 1.41, 1.41])
+		g = g[0:nc].reshape(nc,1)
+		b, a = kfilter_coeffs(fs)
+		print b, a
+		data_k = signal.lfilter(b, a, data, 1)
+		nf_gate = int(fs*0.4)
+		nf_step = int((1-0.75)*nf_gate)
+		steps = int((nf-nf_gate) / (nf_step)) + 1
+		print nf_gate, nf_step, steps
+		z = np.zeros((nc, steps))
+		for c in range(nc):
+			for i in range(steps):
+				z[c][i] = (data_k[c,i*nf_step:i*nf_step+nf_gate]**2).mean()
+		print z
+		l = -0.691 + 10.0*np.log10((g*z).sum(0))
+		print l
+		gamma_a = -70
+		j_a = np.flatnonzero(l > gamma_a)
+		print j_a
+		gamma_r = -0.691 + 10.0*np.log10( (g*(np.take(z, j_a, 1).sum(1, keepdims=1)/j_a.size)).sum() ) - 10
+		print gamma_r
+		j_r = np.flatnonzero(l > gamma_r)
+		print j_r
+		l_kg = -0.691 + 10.0*np.log10( (g*(np.take(z, j_r, 1).sum(1, keepdims=1)/j_r.size)).sum() )
+		print l_kg
+
 	# Spectrum
 	with Timer(True) as t:
 		print 'Calculating spectrum...'
@@ -672,6 +701,43 @@ def ap_coeffs(fc, fs):
 	b = [p_d, -1.0]
 	a = [1.0, -p_d]
 	return (b, a)
+
+def kfilter_coeffs(fs):
+	# Pre filter
+	f0 = 1500.0;
+	w0 = 2*np.pi*f0/fs;
+	Q = 0.5
+	gain = 4.0
+	A = 10**(gain/40)
+	S = 1.0
+	alpha = np.sin(w0)/2 * np.sqrt((A + 1/A)*(1/S -1) + 2);
+	b0 =    A*( (A+1) + (A-1)*np.cos(w0) + 2*np.sqrt(A)*alpha );
+	b1 = -2*A*( (A-1) + (A+1)*np.cos(w0)                   );
+	b2 =    A*( (A+1) + (A-1)*np.cos(w0) - 2*np.sqrt(A)*alpha );
+	a0 =        (A+1) - (A-1)*np.cos(w0) + 2*np.sqrt(A)*alpha;
+	a1 =    2*( (A-1) - (A+1)*np.cos(w0)                   );
+	a2 =        (A+1) - (A-1)*np.cos(w0) - 2*np.sqrt(A)*alpha;
+	b_pre = [b0, b1, b2]/a0
+	a_pre = [a0, a1, a2]/a0
+
+	# Highpass
+	f0 = 38.0;
+	w0 = 2*np.pi*f0/fs;
+	Q = 0.5;
+	alpha = np.sin(w0)/(2*Q);
+	b0 =  (1 + np.cos(w0))/2;
+	b1 = -(1 + np.cos(w0));
+	b2 =  (1 + np.cos(w0))/2;
+	a0 =  1 + alpha;
+	a1 = -2*np.cos(w0);
+	a2 =  1 - alpha;
+	b_hp = [b0, b1, b2]/a0
+	a_hp = [a0, a1, a2]/a0
+
+	b = signal.convolve(b_pre, b_hp)
+	a = signal.convolve(a_pre, a_hp)
+	return (b, a)
+
 
 
 def rolling_window(a, window):
