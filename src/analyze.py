@@ -662,7 +662,16 @@ def ap_coeffs(fc, fs):
 	T = 1.0/fs
 	w_b = 2*np.pi*fc
 	p_d = (1 - np.tan(w_b*T/2)) / (1 + np.tan(w_b*T/2))
-	return ([p_d, -1.0], [1.0, -p_d])
+	b = [p_d, -1.0]
+	a = [1.0, -p_d]
+	'''
+	if fc > fs/2.0001:
+		fc = fs/2.0001
+	rho_b = np.tan(np.pi*fc/fs)
+	p_d = (1 - rho_b) / (1 + rho_b)
+	b = [p_d, -1.0]
+	a = [1.0, -p_d]
+	return (b, a)
 
 
 def rolling_window(a, window):
