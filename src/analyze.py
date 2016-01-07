@@ -44,7 +44,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.9.2"
+VERSION="0.9.3-ebur128"
 
 class Timer(object):
 	def __init__(self, verbose=False):
