@@ -328,6 +328,27 @@ def analyze(track):
 				rms_1s_dbfs[c][i] = db(b, 1.0)
 				crest_1s_db[c][i] = db(a, b)
 
+	# DR
+	with Timer(True) as t:
+		print 'Calculating DR...'
+		dr_blocks = int(nf/(3.0*fs))
+		dr_nf = dr_blocks*3*fs
+		dr_tail = nf - dr_nf
+		dr_data = data[:,:dr_nf].reshape(nc, -1, 3*fs)
+		dr_rms = np.sqrt(2*((dr_data**2).mean(2)))
+		dr_peak = np.absolute(dr_data).max(2)
+		if dr_tail > 0:
+			dr_rms = np.append(dr_rms, np.sqrt(2*((data[:,dr_nf:]**2).mean(1, keepdims=True))), 1)
+			dr_peak = np.append(dr_peak, np.absolute(data[:,dr_nf:]).max(1, keepdims=True), 1)
+		dr_rms.sort()
+		dr_peak.sort()
+		dr_20 = int(round(dr_rms.shape[1]*0.2))
+		if dr_20 < 1:
+			print 'WARNING: Too few DR blocks'
+			dr_20 = 1
+		dr_ch = -20*np.log10( np.sqrt((dr_rms[:,-dr_20:]**2).mean(1, keepdims=True)) / dr_peak[:,[-2]] )
+		dr = int(round(dr_ch.mean()))
+
 	with Timer(True) as t:
 		print 'Calculating checksum...'
 		checksum = (raw_data.astype('uint32')**2).sum()
@@ -354,7 +375,8 @@ def analyze(track):
 		'checksum': checksum,
 		'l_kg': l_kg,
 		'stl': stl,
-		'lra': lra
+		'lra': lra,
+		'dr': dr
 	}
 
 
@@ -375,6 +397,7 @@ def render(track, analysis, header):
 	# Plot
 	#
 	checksum = analysis['checksum']
+	dr = analysis['dr']
 	with Timer(True) as t:
 		print "Drawing plot..."
 		c_color = ['b', 'r']
@@ -389,14 +412,14 @@ def render(track, analysis, header):
 			subtitle2.append('Date: %s' % track['metadata']['date'])
 		subtitle2 = '  '.join(subtitle2)
 		dpi = 72
-		fig = plt.figure(figsize=(606.0/dpi, 1066.0/dpi), facecolor='white', dpi=dpi)
+		fig = plt.figure(figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
 		fig.suptitle(header, fontsize='medium')
-		fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
-		fig.text(0.5, 0.93, subtitle2, fontsize='small', horizontalalignment='center')
-		fig.text(0.075, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
-		fig.text(0.975, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+		fig.text(0.5, 0.955, subtitle1, fontsize='small', horizontalalignment='center')
+		fig.text(0.5, 0.935, subtitle2, fontsize='small', horizontalalignment='center')
+		fig.text(0.075, 0.007, ('Checksum (energy): %d, DR: %d' % (checksum, dr)), fontsize='small', va='bottom', ha='left')
+		fig.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
-		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.913)
+		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.91)
 
 	# Left channel
 	data = track['data']['float']
