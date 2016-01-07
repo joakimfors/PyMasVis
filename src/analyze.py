@@ -257,6 +257,27 @@ def analyze(track):
 	with Timer(True) as t:
 		print 'Calculating EBU R.128...'
 		l_kg = itu1770(data, fs, gated=True)
+		steps = int((nf-3*fs)/fs)+1
+		stl = np.zeros(steps)
+		for i in range(steps):
+			j = i*fs
+			stl[i] = itu1770(data[:,j:j+3*fs], fs, gated=False)
+		print 'stl', stl
+		stl_abs = stl[stl >= -70.0]
+		stl_power = (10.0**(stl_abs/10.0)).mean()
+		stl_int = 10*np.log10(stl_power)
+		stl_rel = stl_abs[stl_abs >= stl_int - 20.0]
+		stl_rel_sort = np.sort(stl_rel)
+		n_stl = stl_rel.size - 1
+		stl_low = stl_rel_sort[round(n_stl*0.1)]
+		stl_high = stl_rel_sort[round(n_stl*0.95)]
+		lra = stl_high - stl_low
+		print stl_abs
+		print stl_rel
+		print stl_rel_sort
+		print stl_low, stl_high, lra
+
+
 
 	# Spectrum
 	with Timer(True) as t:
