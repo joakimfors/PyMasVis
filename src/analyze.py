@@ -272,12 +272,6 @@ def analyze(track):
 		stl_low = stl_rel_sort[round(n_stl*0.1)]
 		stl_high = stl_rel_sort[round(n_stl*0.95)]
 		lra = stl_high - stl_low
-		print stl_abs
-		print stl_rel
-		print stl_rel_sort
-		print stl_low, stl_high, lra
-
-
 
 	# Spectrum
 	with Timer(True) as t:
@@ -741,34 +735,25 @@ def itu1770(data, fs, gated=False):
 	g = np.array([1.0, 1.0, 1.0, 1.41, 1.41])
 	g = g[0:nc].reshape(nc,1)
 	b, a = kfilter_coeffs(fs)
-	print 'b, a', b, a
 	data_k = signal.lfilter(b, a, data, 1)
 	if gated:
 		nf_gate = int(fs*0.4)
 		nf_step = int((1-0.75)*nf_gate)
 		steps = int((nf-nf_gate) / (nf_step)) + 1
-		print 'nf_gate, nf_step, steps', nf_gate, nf_step, steps
 		z = np.zeros((nc, steps), dtype=np.float)
 		for i in range(steps):
 			j = i*nf_step
 			z[:,i:i+1] = (data_k[:,j:j+nf_gate]**2).mean(1, keepdims=True)
-		print 'z', z
 		l = -0.691 + 10.0*np.log10((g*z).sum(0))
-		print 'l', l
 		gamma_a = -70
 		j_a = np.flatnonzero(l > gamma_a)
-		print 'j_a', j_a
 		gamma_r = -0.691 + 10.0*np.log10( (g*(np.take(z, j_a, 1).mean(1, keepdims=1))).sum() ) - 10
-		print 'gamma_r', gamma_r
 		j_r = np.flatnonzero(l > gamma_r)
-		print 'j_r', j_r
 		l_kg = -0.691 + 10.0*np.log10( (g*(np.take(z, j_r, 1).mean(1, keepdims=1))).sum() )
-		print 'l_kg', l_kg, ' => %.1f' % l_kg
 		return l_kg
 	else:
 		z = (data_k**2).mean(1, keepdims=1)
 		l_k = -0.691 + 10.0*np.log10( (g*z).sum() )
-		print 'l_k', l_k
 		return l_k
 
 def rolling_window(a, window):
