@@ -255,7 +255,7 @@ def analyze(track):
 
 	# EBU R.128
 	with Timer(True) as t:
-		print 'Calculating EBU R.128...'
+		print 'Calculating EBU R 128...'
 		l_kg = itu1770(data, fs, gated=True)
 		steps = int((nf-3*fs)/fs)+1
 		stl = np.zeros(steps)
