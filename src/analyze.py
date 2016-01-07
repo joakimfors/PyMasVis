@@ -617,10 +617,10 @@ def render(track, analysis, header):
 	with Timer(True) as t:
 		print "Drawing EBU R 128 loudness..."
 		ax_ebur128 = subplot(gs[6,:])
-		plot(np.arange(stl.size)+0.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
-		ylim(-18,9)
+		plot(np.arange(stl.size)+1.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
+		ylim(-18,18)
 		xlim(0,n_1s)
-		yticks([-10, 0, 10, 20], (-10,0,'',''))
+		yticks([-10, 0, 10], (-10,0,''))
 		ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
 		title("EBU R 128 Short term loudness", fontsize='small', loc='left')
 		title("L$_K$=%.1f LU, LRA=%.1f LU" % (l_kg+lufs_to_lu, lra), fontsize='small', loc='right')
