@@ -262,7 +262,6 @@ def analyze(track):
 		for i in range(steps):
 			j = i*fs
 			stl[i] = itu1770(data[:,j:j+3*fs], fs, gated=False)
-		print 'stl', stl
 		stl_abs = stl[stl >= -70.0]
 		stl_power = (10.0**(stl_abs/10.0)).mean()
 		stl_int = 10*np.log10(stl_power)
