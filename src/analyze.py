@@ -351,7 +351,10 @@ def analyze(track):
 		'rms_1s_dbfs': rms_1s_dbfs,
 		'peak_1s_dbfs': peak_1s_dbfs,
 		'crest_1s_db': crest_1s_db,
-		'checksum': checksum
+		'checksum': checksum,
+		'l_kg': l_kg,
+		'stl': stl,
+		'lra': lra
 	}
 
 
@@ -386,14 +389,14 @@ def render(track, analysis, header):
 			subtitle2.append('Date: %s' % track['metadata']['date'])
 		subtitle2 = '  '.join(subtitle2)
 		dpi = 72
-		fig = plt.figure(figsize=(606.0/dpi, 946.0/dpi), facecolor='white', dpi=dpi)
+		fig = plt.figure(figsize=(606.0/dpi, 1066.0/dpi), facecolor='white', dpi=dpi)
 		fig.suptitle(header, fontsize='medium')
 		fig.text(0.5, 0.95, subtitle1, fontsize='small', horizontalalignment='center')
 		fig.text(0.5, 0.93, subtitle2, fontsize='small', horizontalalignment='center')
 		fig.text(0.075, 0.01, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 		fig.text(0.975, 0.01, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
-		gs = gridspec.GridSpec(6, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.04, top=0.90)
+		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.913)
 
 	# Left channel
 	data = track['data']['float']
@@ -582,6 +585,27 @@ def render(track, analysis, header):
 		ax_1s.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 		ax_1s.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 		axis_defaults(ax_1s)
+
+	# EBU R 128
+	l_kg = analysis['l_kg']
+	stl = analysis['stl']
+	lra = analysis['lra']
+	lufs_to_lu = 23.0
+	with Timer(True) as t:
+		print "Drawing EBU R 128 loudness..."
+		ax_ebur128 = subplot(gs[6,:])
+		plot(np.arange(stl.size)+0.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
+		ylim(-18,9)
+		xlim(0,n_1s)
+		yticks([-10, 0, 10, 20], (-10,0,'',''))
+		ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+		title("EBU R 128 Short term loudness", fontsize='small', loc='left')
+		title("L$_K$=%.1f LU, LRA=%.1f LU" % (l_kg+lufs_to_lu, lra), fontsize='small', loc='right')
+		xlabel('s', fontsize='small')
+		ylabel('LU', fontsize='small', rotation=0)
+		ax_ebur128.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
+		ax_ebur128.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+		axis_defaults(ax_ebur128)
 
 	# Save
 	with Timer(True) as t:
