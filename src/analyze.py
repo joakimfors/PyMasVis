@@ -415,7 +415,7 @@ def render(track, analysis, header):
 		fig = plt.figure(figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
 		fig.suptitle(header, fontsize='medium')
 		fig.text(0.5, 0.955, subtitle1, fontsize='small', horizontalalignment='center')
-		fig.text(0.5, 0.935, subtitle2, fontsize='small', horizontalalignment='center')
+		fig.text(0.5, 0.938, subtitle2, fontsize='small', horizontalalignment='center')
 		fig.text(0.075, 0.007, ('Checksum (energy): %d, DR: %d' % (checksum, dr)), fontsize='small', va='bottom', ha='left')
 		fig.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
