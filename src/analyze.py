@@ -396,13 +396,14 @@ def render(track, analysis, header):
 	#
 	# Plot
 	#
-	checksum = analysis['checksum']
+	crest_db = analysis['crest_db']
 	dr = analysis['dr']
+	checksum = analysis['checksum']
 	with Timer(True) as t:
 		print "Drawing plot..."
 		c_color = ['b', 'r']
 		c_name = ['left', 'right']
-		subtitle1 = 'Encoding: %s  Bitrate: %s  Source: %s' % (track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'])
+		subtitle1 = 'Crest: %.2f dB  DR: %d  Encoding: %s  Bitrate: %s  Source: %s' % (crest_db.mean(), dr, track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'],)
 		subtitle2 = []
 		if track['metadata']['album']:
 			subtitle2.append('Album: %.*s' % (50, track['metadata']['album']))
@@ -416,7 +417,7 @@ def render(track, analysis, header):
 		fig.suptitle(header, fontsize='medium')
 		fig.text(0.5, 0.955, subtitle1, fontsize='small', horizontalalignment='center')
 		fig.text(0.5, 0.938, subtitle2, fontsize='small', horizontalalignment='center')
-		fig.text(0.075, 0.007, ('Checksum (energy): %d, DR: %d' % (checksum, dr)), fontsize='small', va='bottom', ha='left')
+		fig.text(0.075, 0.007, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 		fig.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
 		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.91)
@@ -424,7 +425,6 @@ def render(track, analysis, header):
 	# Left channel
 	data = track['data']['float']
 	sec = track['duration']
-	crest_db = analysis['crest_db']
 	rms_dbfs = analysis['rms_dbfs']
 	peak_dbfs = analysis['peak_dbfs']
 	c_max = analysis['c_max']
