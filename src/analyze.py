@@ -268,11 +268,11 @@ def analyze(track):
 		d_size = data.dtype.itemsize
 		true_peak = np.copy(data_peak)
 		for c in range(nc):
-			ch_strides = np.lib.stride_tricks.as_strided(data[c], (nf-fir_size, fir_size), (d_size, d_size))
+			fir_strides = np.lib.stride_tricks.as_strided(data[c], (nf-fir_size, fir_size), (d_size, d_size))
 			chx4 = np.zeros(nf*d_size, dtype=data.dtype, order='C')
 			chx4_strides = np.lib.stride_tricks.as_strided(chx4, (nf, fir_phases), (fir_phases*d_size, d_size))
-			for i in range(ch_strides.shape[0]):
-				np.dot(fir, ch_strides[i], chx4_strides[i])
+			for i in range(fir_strides.shape[0]):
+				np.dot(fir, fir_strides[i], chx4_strides[i])
 			peak = np.abs(chx4).max()
 			if peak > true_peak[c]:
 				true_peak[c] = peak
