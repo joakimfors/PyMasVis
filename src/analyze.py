@@ -265,7 +265,7 @@ def analyze(track):
 		print 'Calculating true peaks...'
 		fir = np.array(FIR)
 		fir_phases, fir_size = fir.shape
-		d_size = data.dtype.itemsize
+		d_size = data.itemsize
 		strides = nf-fir_size
 		true_peak = np.copy(data_peak)
 		for c in range(nc):
