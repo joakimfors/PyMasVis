@@ -266,14 +266,12 @@ def analyze(track):
 		fir = np.array(FIR)
 		fir_phases, fir_size = fir.shape
 		d_size = data.dtype.itemsize
+		strides = nf-fir_size
 		true_peak = np.copy(data_peak)
 		for c in range(nc):
-			fir_strides = np.lib.stride_tricks.as_strided(data[c], (nf-fir_size, fir_size), (d_size, d_size))
-			chx4 = np.zeros(nf*d_size, dtype=data.dtype, order='C')
-			chx4_strides = np.lib.stride_tricks.as_strided(chx4, (nf, fir_phases), (fir_phases*d_size, d_size))
-			for i in range(fir_strides.shape[0]):
-				np.dot(fir, fir_strides[i], chx4_strides[i])
-			peak = np.abs(chx4).max()
+			fir_strides = np.lib.stride_tricks.as_strided(data[c], (strides, fir_size, 1), (d_size, d_size, d_size))
+			out = np.dot(fir, fir_strides)
+			peak = np.abs(out).max()
 			if peak > true_peak[c]:
 				true_peak[c] = peak
 		true_peak_dbfs = db(true_peak, 1.0)
