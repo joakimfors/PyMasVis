@@ -21,9 +21,7 @@ For standard usage on .wav files:
 	pip install matplotlib
 	pip install pillow
 
-FFmpeg is required to process audio files other than .wav.
-
-To use spotify:
+To analyze spotify URIs:
 
 	pip install pyspotify
 
