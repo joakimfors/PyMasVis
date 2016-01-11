@@ -211,10 +211,6 @@ def analyze(track):
 	ext = track['metadata']['extension']
 	bps = track['metadata']['bps']
 
-	print 'data.flags ', data.flags
-	for ch in range(data.shape[0]):
-		print ch, data[ch].flags
-
 	print "Processing %s" % name
 	print "\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tformat: %s\n\tbitrate: %s" % (fs, nc, nf, bits, ext, bps)
 
@@ -264,104 +260,23 @@ def analyze(track):
 		if w_max[1] > nf:
 			w_max = (nf - fs/10, nf)
 
-	# True peak
-	fir_phases = np.array(FIR)
-	'''with Timer(True) as t:
-		print 'Calculating true peak...'
-		print 'Peaks', data_peak
-		print 'Peaks dBFS', peak_dbfs
-		#print 'Data peak', data_peak
-		true_peak = np.copy(data_peak)
-		# naive
-		for c in range(nc):
-			for i in range(len(data[c])-24):
-				peak = np.abs(np.dot(fir_phases, data[c][i:i+24])).max()
-				if peak > true_peak[c]:
-					true_peak[c] = peak
-		print 'True peaks', true_peak
-		true_peak_dbfs = db(true_peak, 1.0)
-		print 'TP dBFS', true_peak_dbfs
+	# True peaks
 	with Timer(True) as t:
-		# tricks
-		print '... with stride tricks'
+		print 'Calculating true peaks...'
+		fir = np.array(FIR)
+		fir_phases, fir_size = fir.shape
+		d_size = data.dtype.itemsize
 		true_peak = np.copy(data_peak)
 		for c in range(nc):
-			ch = data[c]
-			print ch.flags
-			windows = sliding_window(ch, 24, 1)
-			for w in windows:
-				peak = np.abs(np.dot(fir_phases, w)).max()
-				if peak > true_peak[c]:
-					true_peak[c] = peak
-		print 'True peaks', true_peak
-		true_peak_dbfs = db(true_peak, 1.0)
-		print 'TP dBFS', true_peak_dbfs'''
-	with Timer(True) as t:
-		# tricks
-		print '... with stride tricks etc'
-		print 'data.dtype: ', data.dtype
-		true_peak = np.copy(data_peak)
-		for c in range(nc):
-			ch = data[c]
-			#print 'ch.flags: ', ch.flags
-			windows = sliding_window(ch, 24, 1)
-			#print 'windows.flags: ', windows.flags
-			#print 'windows[0].flags: ', windows[0].flags
-			chx4 = np.zeros(nf*4)
-			#print 'Share data (data, ch): ', arrays_share_data(data, ch)
-			#print 'Share data (data, windows): ', arrays_share_data(data, windows)
-			#print 'id (data[c,0], windows[c,0])', aid(data[c,0]), aid(windows[0,0])
-			#print 'data.nbytes: ', data.nbytes
-			#print 'ch.nbytes: ', ch.nbytes
-			#print 'windows.nbytes: ', windows.nbytes
-			#print 'chx4.nbytes: ', chx4.nbytes
-			for i in range(windows.shape[0]):
-				chx4[i*4:i*4+4] = np.dot(fir_phases, windows[i])
+			ch_strides = np.lib.stride_tricks.as_strided(data[c], (nf-fir_size, fir_size), (d_size, d_size))
+			chx4 = np.zeros(nf*d_size, dtype=data.dtype, order='C')
+			chx4_strides = np.lib.stride_tricks.as_strided(chx4, (nf, fir_phases), (fir_phases*d_size, d_size))
+			for i in range(ch_strides.shape[0]):
+				np.dot(fir, ch_strides[i], chx4_strides[i])
 			peak = np.abs(chx4).max()
 			if peak > true_peak[c]:
 				true_peak[c] = peak
-		print 'True peaks', true_peak
 		true_peak_dbfs = db(true_peak, 1.0)
-		print 'TP dBFS', true_peak_dbfs
-	with Timer(True) as t:
-		# tricks
-		print '... with as_strided'
-		true_peak = np.copy(data_peak)
-		for c in range(nc):
-			ch = data[c]
-			#print 'ch.flags: ', ch.flags
-			strides = np.lib.stride_tricks.as_strided(ch, (nf-24, 24), (8,8))
-			#print 'strides.flags: ', strides.flags
-			#print 'strides[0].flags: ', strides[0].flags
-			chx4 = np.zeros((nf-24)*4, dtype=np.float64)
-			chx4_strides = np.lib.stride_tricks.as_strided(chx4, (nf-24, 4), (4*8,8))
-			#print 'Share data (data, ch): ', arrays_share_data(data, ch)
-			#print 'Share data (data, strides): ', arrays_share_data(data, strides)
-			#print 'id (data[c,0], strides[c,0])', aid(data[c,0]), aid(strides[0,0])
-			#print 'data.nbytes: ', data.nbytes
-			#print 'ch.nbytes: ', ch.nbytes
-			#print 'strides.nbytes: ', strides.nbytes
-			#print 'chx4.nbytes: ', chx4.nbytes
-			for i in range(strides.shape[0]):
-				 np.dot(fir_phases, strides[i], chx4_strides[i])
-			peak = np.abs(chx4).max()
-			if peak > true_peak[c]:
-				true_peak[c] = peak
-		print 'True peaks', true_peak
-		true_peak_dbfs = db(true_peak, 1.0)
-		print 'TP dBFS', true_peak_dbfs
-	with Timer(True) as t:
-		print 'flatten and filter'
-		for c in range(nc):
-			ch = data[c]
-			chx4 = np.zeros((4,ch.shape[0]))
-			chx4[0,:] = ch
-			chx4 = chx4.flatten('F')
-			chx4 = signal.lfilter(fir_phases.flatten(), 1, chx4)
-			true_peak[c] = np.abs(chx4).max()
-		print 'True peaks', true_peak
-		true_peak_dbfs = db(true_peak, 1.0)
-		print 'TP dBFS', true_peak_dbfs
 
 	# EBU R.128
 	with Timer(True) as t:
@@ -915,109 +830,12 @@ def itu1770(data, fs, gated=False):
 		l_k = -0.691 + 10.0*np.log10( (g*z).sum() )
 		return l_k
 
-def rolling_window(a, window):
-	shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-	strides = a.strides + (a.strides[-1],)
-	return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
-
-
-from numpy.lib.stride_tricks import as_strided as ast
-def norm_shape(shape):
-	'''
-	Normalize numpy array shapes so they're always expressed as a tuple,
-	even for one-dimensional shapes.
-
-	Parameters
-		shape - an int, or a tuple of ints
-
-	Returns
-		a shape tuple
-	'''
-	try:
-		i = int(shape)
-		return (i,)
-	except TypeError:
-		# shape was not a number
-		pass
-
-	try:
-		t = tuple(shape)
-		return t
-	except TypeError:
-		# shape was not iterable
-		pass
-
-	raise TypeError('shape must be an int, or a tuple of ints')
-
-def sliding_window(a,ws,ss = None,flatten = True):
-	'''
-	Return a sliding window over a in any number of dimensions
-
-	Parameters:
-		a  - an n-dimensional numpy array
-		ws - an int (a is 1D) or tuple (a is 2D or greater) representing the size
-			 of each dimension of the window
-		ss - an int (a is 1D) or tuple (a is 2D or greater) representing the
-			 amount to slide the window in each dimension. If not specified, it
-			 defaults to ws.
-		flatten - if True, all slices are flattened, otherwise, there is an
-				  extra dimension for each dimension of the input.
-
-	Returns
-		an array containing each n-dimensional window from a
-	'''
-
-	if None is ss:
-		# ss was not provided. the windows will not overlap in any direction.
-		ss = ws
-	ws = norm_shape(ws)
-	ss = norm_shape(ss)
-
-	# convert ws, ss, and a.shape to numpy arrays so that we can do math in every
-	# dimension at once.
-	ws = np.array(ws)
-	ss = np.array(ss)
-	shape = np.array(a.shape)
-
-
-	# ensure that ws, ss, and a.shape all have the same number of dimensions
-	ls = [len(shape),len(ws),len(ss)]
-	if 1 != len(set(ls)):
-		raise ValueError(\
-		'a.shape, ws and ss must all have the same length. They were %s' % str(ls))
-
-	# ensure that ws is smaller than a in every dimension
-	if np.any(ws > shape):
-		raise ValueError(\
-		'ws cannot be larger than a in any dimension.\
- a.shape was %s and ws was %s' % (str(a.shape),str(ws)))
-
-	# how many slices will there be in each dimension?
-	newshape = norm_shape(((shape - ws) // ss) + 1)
-	# the shape of the strided array will be the number of slices in each dimension
-	# plus the shape of the window (tuple addition)
-	newshape += norm_shape(ws)
-	# the strides tuple will be the array's strides multiplied by step size, plus
-	# the array's strides (tuple addition)
-	newstrides = norm_shape(np.array(a.strides) * ss) + a.strides
-	strided = ast(a,shape = newshape,strides = newstrides)
-	if not flatten:
-		return strided
-
-	# Collapse strided so that it has one more dimension than the window.  I.e.,
-	# the new array is a flat list of slices.
-	meat = len(ws) if ws.shape else 0
-	firstdim = (np.product(newshape[:-meat]),) if ws.shape else ()
-	dim = firstdim + (newshape[-meat:])
-	# remove any dimensions with size 1
-	dim = filter(lambda i : i != 1,dim)
-	return strided.reshape(dim)
-
 
 def aid(x):
 	# This function returns the memory
 	# block address of an array.
 	return x.__array_interface__['data'][0]
+
 
 def get_data_base(arr):
 	"""For a given Numpy array, finds the
@@ -1026,6 +844,7 @@ def get_data_base(arr):
 	while isinstance(base.base, np.ndarray):
 		base = base.base
 	return base
+
 
 def arrays_share_data(x, y):
 	return get_data_base(x) is get_data_base(y)
