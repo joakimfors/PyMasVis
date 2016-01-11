@@ -437,27 +437,33 @@ def render(track, analysis, header):
 	#
 	# Plot
 	#
+	nc = track['channels']
 	crest_db = analysis['crest_db']
 	dr = analysis['dr']
+	l_kg = analysis['l_kg']
+	lra = analysis['lra']
+	plr = analysis['plr_lu']
 	checksum = analysis['checksum']
+	lufs_to_lu = 23.0
 	with Timer(True) as t:
 		print "Drawing plot..."
 		c_color = ['b', 'r']
 		c_name = ['left', 'right']
-		subtitle1 = 'Crest: %.2f dB  DR: %d  Encoding: %s  Bitrate: %s  Source: %s' % (crest_db.mean(), dr, track['metadata']['format'], track['metadata']['bps'], track['metadata']['source'],)
-		subtitle2 = []
+		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_db.mean(), dr, l_kg+lufs_to_lu, lra, plr)
+		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Bitrate: %s,  Source: %s' % (track['metadata']['format'], track['channels'], track['bitdepth'], track['metadata']['bps'], track['metadata']['source'])
+		subtitle_meta = []
 		if track['metadata']['album']:
-			subtitle2.append('Album: %.*s' % (50, track['metadata']['album']))
+			subtitle_meta.append('Album: %.*s' % (50, track['metadata']['album']))
 		if track['metadata']['track']:
-			subtitle2.append('Track: %s' % track['metadata']['track'])
+			subtitle_meta.append('Track: %s' % track['metadata']['track'])
 		if track['metadata']['date']:
-			subtitle2.append('Date: %s' % track['metadata']['date'])
-		subtitle2 = '  '.join(subtitle2)
+			subtitle_meta.append('Date: %s' % track['metadata']['date'])
+		subtitle_meta = ',  '.join(subtitle_meta)
+		subtitle = '\n'.join([subtitle_analysis, subtitle_source, subtitle_meta])
 		dpi = 72
 		fig = plt.figure(figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
-		fig.suptitle(header, fontsize='medium')
-		fig.text(0.5, 0.955, subtitle1, fontsize='small', horizontalalignment='center')
-		fig.text(0.5, 0.938, subtitle2, fontsize='small', horizontalalignment='center')
+		fig.suptitle(header, fontsize='medium', y=0.992)
+		fig.text(0.5, 0.975, subtitle, fontsize='small', horizontalalignment='center', verticalalignment='top', linespacing=1.6)
 		fig.text(0.075, 0.007, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
 		fig.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
@@ -468,7 +474,7 @@ def render(track, analysis, header):
 	sec = track['duration']
 	rms_dbfs = analysis['rms_dbfs']
 	peak_dbfs = analysis['peak_dbfs']
-	true_peak_dbfs = analysis['true_peak_dbfs']
+	true_peak_dbtp = analysis['true_peak_dbtp']
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
 	fs = track['samplerate']
@@ -481,31 +487,32 @@ def render(track, analysis, header):
 		plot(new_range, new_data, 'b-')
 		xlim(0, sec)
 		ylim(-1.0, 1.0)
-		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBFS" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbfs[0]), fontsize='small', loc='left')
+		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbtp[0]), fontsize='small', loc='left')
 		setp(ax_lch.get_xticklabels(), visible=False)
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		if c_max == 0:
 			mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
 
-	# Right channel
-	with Timer(True) as t:
-		print "Drawing right channel..."
-		ax_rch = subplot(gs[1,:], sharex=ax_lch)
-		new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
-		new_fs = new_nf/float(sec)
-		new_range = np.arange(0.0, new_nf, 1)/new_fs
-		plot(new_range, new_data, 'r-')
-		xlim(0, sec)
-		ylim(-1.0, 1.0)
-		title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBFS" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbfs[1]), fontsize='small', loc='left')
-		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-		ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
-		ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-		xlabel('s', fontsize='small')
-		if c_max == 1:
-			mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
-		axis_defaults(ax_lch)
-		axis_defaults(ax_rch)
+	if nc > 1:
+		# Right channel
+		with Timer(True) as t:
+			print "Drawing right channel..."
+			ax_rch = subplot(gs[1,:], sharex=ax_lch)
+			new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
+			new_fs = new_nf/float(sec)
+			new_range = np.arange(0.0, new_nf, 1)/new_fs
+			plot(new_range, new_data, 'r-')
+			xlim(0, sec)
+			ylim(-1.0, 1.0)
+			title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbtp[1]), fontsize='small', loc='left')
+			yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+			ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
+			ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+			xlabel('s', fontsize='small')
+			if c_max == 1:
+				mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
+			axis_defaults(ax_lch)
+			axis_defaults(ax_rch)
 
 	# Loudest
 	f_max = analysis['f_max']
@@ -547,8 +554,9 @@ def render(track, analysis, header):
 		)
 		new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
 		semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
-		new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-		semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
+		if nc > 1:
+			new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+			semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
 		ylim(-90, -10)
 		xlim(0.02, 20)
 		ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
@@ -569,9 +577,11 @@ def render(track, analysis, header):
 		print "Drawing allpass..."
 		ax_ap = subplot(gs[3,1])
 		semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
-		semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
+		if nc > 1:
+			semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
 		semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10)
-		semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
+		if nc > 1:
+			semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
 		ylim(0,30)
 		xlim(0.02, 20)
 		title("Allpassed crest factor", fontsize='small', loc='left')
@@ -591,15 +601,19 @@ def render(track, analysis, header):
 		new_hist[(new_hist == 1.0)] = 1.3
 		new_hist[(new_hist < 1.0)] = 1.0
 		semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
-		new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
-		new_hist[(new_hist == 1.0)] = 1.3
-		new_hist[(new_hist < 1.0)] = 1.0
-		semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
+		if nc > 1:
+			new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
+			new_hist[(new_hist == 1.0)] = 1.3
+			new_hist[(new_hist < 1.0)] = 1.0
+			semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
 		xlim(-1.1, 1.1)
 		ylim(1,50000)
 		xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
 		yticks([10, 100, 1000], (10, 100, 1000))
-		title('Histogram, "bits": %0.1f/%0.1f' % (hist_bits[0], hist_bits[1]), fontsize='small', loc='left')
+		hist_title = 'Histogram, "bits": %0.1f' % hist_bits[0]
+		if nc > 1:
+			hist_title += '/%0.1f' % hist_bits[1]
+		title(hist_title, fontsize='small', loc='left')
 		ylabel('n', fontsize='small', rotation=0)
 		axis_defaults(ax_hist)
 
@@ -622,7 +636,8 @@ def render(track, analysis, header):
 		text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
 		text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
 		plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-		plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		if nc > 1:
+			plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 		xlim(-50, 0)
 		ylim(-50, 0)
 		title("Peak vs RMS level", fontsize='small', loc='left')
@@ -639,7 +654,8 @@ def render(track, analysis, header):
 		print "Drawing short term crest..."
 		ax_1s = subplot(gs[5,:])
 		plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-		plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		if nc > 1:
+			plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
 		ylim(0,30)
 		xlim(0,n_1s)
 		yticks([10, 20], (10,))
@@ -652,10 +668,8 @@ def render(track, analysis, header):
 		axis_defaults(ax_1s)
 
 	# EBU R 128
-	l_kg = analysis['l_kg']
 	stl = analysis['stl']
-	lra = analysis['lra']
-	lufs_to_lu = 23.0
+	stplr = analysis['stplr_lu']
 	with Timer(True) as t:
 		print "Drawing EBU R 128 loudness..."
 		ax_ebur128 = subplot(gs[6,:])
@@ -663,14 +677,23 @@ def render(track, analysis, header):
 		ylim(-18,18)
 		xlim(0,n_1s)
 		yticks([-10, 0, 10], (-10,0,''))
-		ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
 		title("EBU R 128 Short term loudness", fontsize='small', loc='left')
-		title("L$_K$=%.1f LU, LRA=%.1f LU" % (l_kg+lufs_to_lu, lra), fontsize='small', loc='right')
+		title("Short term PLR", fontsize='small', loc='right')
 		xlabel('s', fontsize='small')
 		ylabel('LU', fontsize='small', rotation=0)
+		ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
+		ax_ebur128_stplr = ax_ebur128.twinx()
+		plot(np.arange(stplr.size)+1.5, stplr, 'o', markerfacecolor='w', markeredgecolor='grey', markeredgewidth=0.7)
+		xlim(0,n_1s)
+		ylim(0,36)
+		yticks([0, 18], (0, 18))
+		for tl in ax_ebur128_stplr.get_yticklabels():
+			tl.set_color('grey')
 		ax_ebur128.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
 		ax_ebur128.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 		axis_defaults(ax_ebur128)
+		axis_defaults(ax_ebur128_stplr)
+		ax_ebur128_stplr.tick_params(axis='y', which='major', labelsize='xx-small')
 
 	# Save
 	with Timer(True) as t:
