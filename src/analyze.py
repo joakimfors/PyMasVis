@@ -358,7 +358,6 @@ def analyze(track):
 		peak_1s_dbfs = np.zeros((nc, n_1s))
 		rms_1s_dbfs = np.zeros((nc, n_1s))
 		crest_1s_db = np.zeros((nc, n_1s))
-		#print n_1s
 		for c in range(nc):
 			for i in range(n_1s):
 				a = data[c,i*fs:(i+1)*fs].max()
