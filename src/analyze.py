@@ -37,6 +37,7 @@ import scipy.signal as signal
 from os.path import basename
 from tempfile import mkstemp
 from subprocess import CalledProcessError
+from numpy.lib.stride_tricks import as_strided
 from scipy.io import wavfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
@@ -147,9 +148,10 @@ def load_file(infile):
 			print 'Could not convert %s' % infile
 			exit(e.returncode)
 	fs, raw_data = wavfile.read(infile)
-	nc = raw_data.shape[1]
+	if len(raw_data.shape) == 1:
+		raw_data = np.array([raw_data]).transpose()
 	enc = str(raw_data.dtype)
-	nf = raw_data.shape[0]
+	nf, nc = raw_data.shape
 	sec = nf/fs
 	bits = 16
 	for b in [8, 16, 24, 32, 64]:
@@ -268,13 +270,17 @@ def analyze(track):
 		d_size = data.itemsize
 		strides = nf-fir_size
 		true_peak = np.copy(data_peak)
+		steps = int((nf-3*fs)/fs)+1
+		sttp = np.zeros((nc, steps))
 		for c in range(nc):
-			fir_strides = np.lib.stride_tricks.as_strided(data[c], (strides, fir_size, 1), (d_size, d_size, d_size))
-			out = np.dot(fir, fir_strides)
-			peak = np.abs(out).max()
+			fir_strides = as_strided(data[c], (strides, fir_size, 1), (d_size, d_size, d_size))
+			peaks = np.abs(np.dot(fir, fir_strides))
+			peak = peaks.max()
 			if peak > true_peak[c]:
 				true_peak[c] = peak
-		true_peak_dbfs = db(true_peak, 1.0)
+			peaks_strided = as_strided(peaks, (steps, fir_phases*3*fs), (fir_phases*fs, d_size))
+			sttp[c,:] = peaks_strided.max(1)
+		true_peak_dbtp = db(true_peak, 1.0)
 
 	# EBU R.128
 	with Timer(True) as t:
@@ -294,6 +300,16 @@ def analyze(track):
 		stl_low = stl_rel_sort[round(n_stl*0.1)]
 		stl_high = stl_rel_sort[round(n_stl*0.95)]
 		lra = stl_high - stl_low
+
+	# PLR
+	with Timer(True) as t:
+		print 'Calculatin PLR...'
+		plr_lu = true_peak_dbtp.max() - l_kg
+		#print plr_lu
+		#print sttp
+		stplr_lu = db(sttp.max(0), 1.0) - stl
+		#print stplr_lu
+		#print stl
 
 	# Spectrum
 	with Timer(True) as t:
@@ -381,7 +397,7 @@ def analyze(track):
 		'crest_db': crest_db,
 		'rms_dbfs': rms_dbfs,
 		'peak_dbfs': peak_dbfs,
-		'true_peak_dbfs': true_peak_dbfs,
+		'true_peak_dbtp': true_peak_dbtp,
 		'c_max': c_max,
 		'w_max': w_max,
 		'f_max': f_max,
@@ -400,7 +416,9 @@ def analyze(track):
 		'l_kg': l_kg,
 		'stl': stl,
 		'lra': lra,
-		'dr': dr
+		'dr': dr,
+		'plr_lu': plr_lu,
+		'stplr_lu': stplr_lu
 	}
 
 
