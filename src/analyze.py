@@ -377,7 +377,6 @@ def analyze(track):
 	with Timer(True) as t:
 		print 'Calculating checksum...'
 		checksum = (raw_data.astype('uint32')**2).sum()
-	exit(0)
 
 	#
 	return {
