@@ -45,7 +45,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.9.7"
+VERSION="0.9.8"
 
 FIR = [
 	[-0.001780280772489, 0.003253283030257, -0.005447293390376, 0.008414568116553, -0.012363296099675, 0.017436805871070, -0.024020143876810, 0.032746828420101, -0.045326602900760, 0.066760686868173, -0.120643370377371, 0.989429605248410, 0.122160009958442, -0.046376232812786, 0.022831393004364, -0.011580897261667, 0.005358105753167, -0.001834671998839, -0.000103681038815, 0.001002216283171, -0.001293611238062, 0.001184842429930, -0.000908719377960, 0.002061304229100],
@@ -325,7 +325,7 @@ def analyze(track):
 	# Allpass
 	with Timer(True) as t:
 		print 'Calculating allpass...'
-		ap_freqs = np.array([20, 60, 200, 600, 2000, 20000])
+		ap_freqs = np.array([20, 60, 200, 600, 2000, 6000, 20000])
 		ap_crest = np.zeros((len(ap_freqs),nc))
 		ap_rms = np.zeros((len(ap_freqs),nc))
 		ap_peak = np.zeros((len(ap_freqs),nc))
