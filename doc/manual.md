@@ -99,7 +99,7 @@ The crest factor is the ratio between the peak value and the RMS value during a 
 
 Dynamic Range calculated according to http://www.dynamicrange.de/sites/default/files/Measuring%20DR%20ENv3.pdf
 
-### L_k_
+### L_k
 
 The relative (-23 LUFS) program loudness as defined by EBU R 128.
 
