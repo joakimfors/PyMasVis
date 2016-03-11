@@ -24,6 +24,7 @@ import subprocess
 import math
 import re
 import time
+import json
 import logging
 import numpy as np
 import scipy as sp
@@ -111,9 +112,10 @@ def load_file(infile):
 	date = None
 	album = None
 	track = None
-	bps = '1411 kbps'
+	bps = 1411000
+	bits = 16
 	tmpfile = None
-	if ext != "wav":
+	if ext != "wav" or True:
 		ffmpeg_bin = None
 		paths = [d for d in sys.path if 'Contents/Resources' in d]
 		paths.extend(os.getenv('PATH').split(os.pathsep))
@@ -129,60 +131,114 @@ def load_file(infile):
 		if not ffmpeg_bin:
 			log.warning("Could not find ffmpeg")
 			return 1
+		tmpfd, tmpfile = mkstemp(suffix='.raw')
+		log.info("Probing file")
+		try:
+			# Could use ffprobe
+			output = subprocess.check_output(
+				['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
+				stderr=subprocess.STDOUT
+			)
+			log.debug(output)
+			probe = json.loads(output)
+			print probe
+
+			container = probe['format']
+			stream = probe['streams'][0]
+
+			if 'format_name' in container:
+				fmt = container['format_name']
+			if 'bit_rate' in container:
+				bps = int(container['bit_rate'])
+			if 'bit_rate' in stream:
+				bps = int(stream['bit_rate'])
+			if 'duration_ts' in stream:
+				nf = int(stream['duration_ts'])
+			if 'sample_rate' in stream:
+				fs = int(stream['sample_rate'])
+			if 'channels' in stream:
+				nc = stream['channels']
+			if 'bits_per_raw_sample' in stream:
+				bits = int(stream['bits_per_raw_sample'])
+			if 'bits_per_sample' in stream and int(stream['bits_per_sample']) > 0:
+				bits = int(stream['bits_per_sample'])
+			if 'duration' in stream:
+				sec = float(stream['duration'])
+			if 'codec_name' in stream:
+				enc = stream['codec_name']
+				if 'pcm_' == enc[0:4]:
+					enc = fmt.split(',')[0]
+
+			if 'tags' in container:
+				if 'artist' in container['tags']:
+					artist = container['tags']['artist']
+				if 'title' in container['tags']:
+					title = container['tags']['title']
+				if 'album' in container['tags']:
+					album = container['tags']['album']
+				if 'track' in container['tags']:
+					track = int(container['tags']['track'].split('/')[0])
+				if 'date' in container['tags']:
+					date = container['tags']['date']
+
+			print {
+				'frames': nf,
+				'samplerate': fs,
+				'channels': nc,
+				'bitdepth': bits,
+				'duration': sec,
+				'format': fmt,
+				'metadata': {
+					'source': src,
+					'filename': basename(infile),
+					'extension': ext,
+					'encoding': enc,
+					'name': name,
+					'artist': artist,
+					'title': title,
+					'album': album,
+					'track': track,
+					'date': date,
+					'bps': bps
+				}
+			}
+
+			convs = {
+				8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
+				16: {'format': 's16le', 'codec': 'pcm_s16le', 'dtype': np.dtype('<i2')},
+				24: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')},
+				32: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')}
+			}
+
+			conv = convs[bits]
+
+
+		except CalledProcessError as e:
+			log.warning('Could not check %s', infile)
+			exit(e.returncode)
 		log.info("Converting using ffmpeg")
-		tmpfd, tmpfile = mkstemp(suffix='.wav')
+		command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile]
+		if False and 'pcm_' == stream['codec_name'][0:4]:
+			conv = convs[16]
+			command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', 'copy', tmpfile]
+		else:
+			command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', tmpfile]
 		try:
 			output = subprocess.check_output(
-				[ffmpeg_bin, '-y', '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile],
+				command,
 				stderr=subprocess.STDOUT
 			)
 			infile = tmpfile
 			log.debug(output)
-			for line in output.splitlines():
-				match = re.match('^Output.*', line)
-				if match:
-					log.debug("Parsed metadata")
-					break
-				match = re.match('^Input.*?, (.*?),.*', line, flags=re.I)
-				if match:
-					log.debug("fmt %s", match.groups())
-					fmt = match.group(1)
-				match = re.match('\s*title\s*?: (.*)', line, flags=re.I)
-				if match:
-					log.debug("title %s", match.groups())
-					title = match.group(1).decode('utf-8')
-				match = re.match('\s*artist\s*?: (.*)', line, flags=re.I)
-				if match:
-					log.debug("artist %s", match.groups())
-					artist = match.group(1).decode('utf-8')
-				match = re.match('\s*album\s*?: (.*)', line, flags=re.I)
-				if match:
-					log.debug("album %s", match.groups())
-					album = match.group(1).decode('utf-8')
-				match = re.match('\s*track\s*?: (.*)', line, flags=re.I)
-				if match:
-					log.debug("track %s", match.groups())
-					track = match.group(1)
-				match = re.match('\s*date\s*?: (.*)', line, flags=re.I)
-				if match:
-					log.debug("date %s", match.groups())
-					date = match.group(1)
-				match = re.match('\s*Duration:.*bitrate: (\d*?) kb/s', line)
-				if match:
-					log.debug("bps %s", match.groups())
-					bps = match.group(1) + ' kbps'
-				match = re.match('\s*Stream.*?Audio: (.*?),.*, (\d*?) kb/s', line)
-				if match:
-					log.debug("fmt, bps %s", match.groups())
-					stream_fmt, bps = match.group(1, 2)
-					bps = bps + ' kbps'
 		except CalledProcessError as e:
+			print e
 			log.warning('Could not convert %s', infile)
 			exit(e.returncode)
-	fs, raw_data = wavfile.read(infile)
+	"""fs, raw_data = wavfile.read(infile)
 	if len(raw_data.shape) == 1:
-		raw_data = np.array([raw_data]).transpose()
-	enc = str(raw_data.dtype)
+		raw_data = np.array([raw_data]).transpose()"""
+
+	"""enc = str(raw_data.dtype)
 	log.debug("Encoding: %s", enc)
 	nf, nc = raw_data.shape
 	sec = nf/fs
@@ -190,15 +246,23 @@ def load_file(infile):
 	for b in [8, 16, 24, 32, 64]:
 		if enc.find(str(b)) > -1:
 			bits = b
-			break
-	raw_data = raw_data.swapaxes(0,1).copy(order='C')
+			break"""
+	raw_data = np.fromfile(infile, dtype=conv['dtype'])
+	if bits == 24:
+		raw_data /= 2**8
+	print raw_data.shape
+	print raw_data.flags
+	print raw_data.strides
+	print raw_data.itemsize
+	raw_data = raw_data.reshape((nc, nf), order='F').copy(order='C')
+	print raw_data[0].flags
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.close(tmpfd)
 		if not DEBUG:
 			os.remove(tmpfile)
-
+	#exit(1)
 	if not fmt:
 		fmt = ext
 	if artist and title:
@@ -213,11 +277,12 @@ def load_file(infile):
 		'channels': nc,
 		'bitdepth': bits,
 		'duration': sec,
+		'format': fmt,
 		'metadata': {
 			'source': src,
 			'filename': basename(infile),
 			'extension': ext,
-			'encoding': fmt,
+			'encoding': enc,
 			'name': name,
 			'artist': artist,
 			'title': title,
@@ -369,11 +434,11 @@ def analyze(track):
 	with Timer('Calculating histogram...', Steps.calc_hist, Steps) as t:
 		hbits = bits
 		if bits > 16:
-			hbits = 16
+			hbits = 18
 		hist = np.zeros((nc, 2**hbits))
 		hist_bins = np.zeros((nc, 2**hbits+1))
 		for c in range(nc):
-			hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits, range=(-2.0**(hbits-1), 2.0**(hbits-1)-1))
+			hist[c], hist_bins[c] = np.histogram(raw_data[c], bins=2**hbits, range=(-2.0**(bits-1), 2.0**(bits-1)-1))
 		hist_bits = np.log2((hist > 0).sum(1))
 		if bits > hbits:
 			hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
@@ -462,6 +527,7 @@ def render(track, analysis, header):
 	# Plot
 	#
 	nc = track['channels']
+	fs = track['samplerate']
 	crest_db = analysis['crest_db']
 	dr = analysis['dr']
 	l_kg = analysis['l_kg']
@@ -470,10 +536,10 @@ def render(track, analysis, header):
 	checksum = analysis['checksum']
 	lufs_to_lu = 23.0
 	with Timer("Drawing plot...", Steps.draw_plot, Steps) as t:
-		c_color = ['b', 'r']
-		c_name = ['left', 'right']
+		c_color = ['b', 'r', 'g', 'k', 'c', 'm']
+		c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
 		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_db.mean(), dr, l_kg+lufs_to_lu, lra, plr)
-		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Bitrate: %s,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], track['metadata']['bps'], track['metadata']['source'])
+		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Sample rate: %d Hz,  Bitrate: %s kbps,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)), track['metadata']['source'])
 		subtitle_meta = []
 		if track['metadata']['album']:
 			subtitle_meta.append('Album: %.*s' % (50, track['metadata']['album']))
@@ -500,14 +566,13 @@ def render(track, analysis, header):
 	true_peak_dbtp = analysis['true_peak_dbtp']
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
-	fs = track['samplerate']
 	with Timer("Drawing left channel...", Steps.draw_left, Steps) as t:
 		ax_lch = subplot(gs[0,:])
 		new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
-		new_fs = new_nf/float(sec)
+		new_fs = new_nf/sec
 		new_range = np.arange(0.0, new_nf, 1)/new_fs
 		plot(new_range, new_data, 'b-')
-		xlim(0, sec)
+		xlim(0, round(sec))
 		ylim(-1.0, 1.0)
 		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbtp[0]), fontsize='small', loc='left')
 		setp(ax_lch.get_xticklabels(), visible=False)
@@ -520,10 +585,10 @@ def render(track, analysis, header):
 		with Timer("Drawing right channel...", Steps.draw_right, Steps) as t:
 			ax_rch = subplot(gs[1,:], sharex=ax_lch)
 			new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
-			new_fs = new_nf/float(sec)
+			new_fs = new_nf/sec
 			new_range = np.arange(0.0, new_nf, 1)/new_fs
 			plot(new_range, new_data, 'r-')
-			xlim(0, sec)
+			xlim(0, round(sec))
 			ylim(-1.0, 1.0)
 			title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbtp[1]), fontsize='small', loc='left')
 			yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
@@ -867,7 +932,7 @@ def fir_coeffs():
 def itu1770(data, fs, gated=False):
 	nc = data.shape[0]
 	nf = data.shape[1]
-	g = np.array([1.0, 1.0, 1.0, 1.41, 1.41])
+	g = np.array([1.0, 1.0, 1.0, 0.0, 1.41, 1.41]) # FL+FR+FC+LFE+BL+BR
 	g = g[0:nc].reshape(nc,1)
 	b, a = kfilter_coeffs(fs)
 	data_k = signal.lfilter(b, a, data, 1)
