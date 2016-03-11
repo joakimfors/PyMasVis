@@ -3,6 +3,7 @@
 import os
 import io
 import sys
+import time
 import spotify
 import logging
 import threading
@@ -53,7 +54,11 @@ class SpotiDump:
 		self.sample_rate  = audio_format.sample_rate
 		self.buf.write(bytearray(frames))
 		if self.count % 100 == 0:
-			print "%.2f s" % (self.frames / (self.sample_rate * 1.0))
+			pos = self.frames / float(self.sample_rate)
+			per = 100.0 * pos / self.duration
+			real = time.time() - self.start
+			speed = pos / real
+			print "\t%3d %%, %5.1f s, %5.1f s, %5.1fx" % (per, pos, real, speed)
 		self.count += 1
 		return num_frames
 
@@ -87,19 +92,21 @@ class SpotiDump:
 		album = track.album.name
 		date = track.album.year
 		tracknumber = track.index
-		duration = track.duration / 1000
+		name = '%s - %s' % (artist, title)
+		self.duration = duration = track.duration / 1000
+		self.start = time.time()
+		print 'Dumping %s' % name
 		self.session.player.load(track)
 		self.session.player.play()
 		try:
-		    while not self.end_of_track.wait(0.1):
-		        pass
+			while not self.end_of_track.wait(0.1):
+				pass
 		except KeyboardInterrupt:
-		    pass
+			pass
 		self.session.logout()
-		raw_data = np.frombuffer(self.buf.getvalue(), dtype=np.int16).reshape(2, -1, order='F')
+		raw_data = np.frombuffer(self.buf.getvalue(), dtype=np.int16).reshape(2, -1, order='F').copy(order='C')
 		data = raw_data.astype('float')
 		data /= 2**(self.bitdepth-1)
-		name = '%s - %s' % (artist, title)
 		return {
 			'data': {
 				'buffer': self.buf,
@@ -115,7 +122,7 @@ class SpotiDump:
 				'source': 'Spotify',
 				'filename': name + '.ogg',
 				'extension': 'ogg',
-				'format': 'vorbis',
+				'encoding': 'vorbis',
 				'name': name,
 				'artist': artist,
 				'title': title,

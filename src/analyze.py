@@ -36,6 +36,7 @@ import scipy.signal as signal
 
 from os.path import basename
 from tempfile import mkstemp
+from hashlib import sha256
 from subprocess import CalledProcessError
 from numpy.lib.stride_tricks import as_strided
 from scipy.io import wavfile
@@ -47,27 +48,58 @@ from PIL import Image
 
 VERSION="0.9.8"
 
-FIR = [
-	[-0.001780280772489, 0.003253283030257, -0.005447293390376, 0.008414568116553, -0.012363296099675, 0.017436805871070, -0.024020143876810, 0.032746828420101, -0.045326602900760, 0.066760686868173, -0.120643370377371, 0.989429605248410, 0.122160009958442, -0.046376232812786, 0.022831393004364, -0.011580897261667, 0.005358105753167, -0.001834671998839, -0.000103681038815, 0.001002216283171, -0.001293611238062, 0.001184842429930, -0.000908719377960, 0.002061304229100],
-	[-0.001473218555432, 0.002925336766866, -0.005558126468508, 0.009521159741206, -0.015296028027209, 0.023398977482278, -0.034752051245281, 0.050880967772373, -0.075227488678419, 0.116949442543490, -0.212471239510148, 0.788420616540440, 0.460788819545818, -0.166082211358253, 0.092555759769552, -0.057854829231334, 0.037380809681132, -0.024098441541823, 0.015115653825711, -0.009060645712669, 0.005033299068467, -0.002511544062471, 0.001030723665756, -0.000694079453823],
-	[-0.000694079453823, 0.001030723665756, -0.002511544062471, 0.005033299068467, -0.009060645712669, 0.015115653825711, -0.024098441541823, 0.037380809681132, -0.057854829231334, 0.092555759769552, -0.166082211358253, 0.460788819545818, 0.788420616540440, -0.212471239510148, 0.116949442543490, -0.075227488678419, 0.050880967772373, -0.034752051245281, 0.023398977482278, -0.015296028027209, 0.009521159741206, -0.005558126468508, 0.002925336766866, -0.001473218555432],
-	[0.002061304229100, -0.000908719377960, 0.001184842429930, -0.001293611238062, 0.001002216283171, -0.000103681038815, -0.001834671998839, 0.005358105753167, -0.011580897261667, 0.022831393004364, -0.046376232812786, 0.122160009958442, 0.989429605248410, -0.120643370377371, 0.066760686868173, -0.045326602900760, 0.032746828420101, -0.024020143876810, 0.017436805871070, -0.012363296099675, 0.008414568116553, -0.005447293390376, 0.003253283030257, -0.001780280772489]
-]
+DEBUG=False
 
-class Timer(object):
-	def __init__(self, verbose=False):
-		self.verbose = verbose
+class Timer:
+	def __init__(self, description=False, tid=False, callback=False):
+		self.description = description
+		self.callback = callback
+		self.tid = tid
 
 	def __enter__(self):
+		if self.callback:
+			self.callback.start(self.tid, self.description)
+		elif self.description:
+			log.info(self.description)
 		self.start = time.time()
 		return self
 
 	def __exit__(self, *args):
 		self.end = time.time()
 		self.secs = self.end - self.start
-		self.msecs = self.secs * 1000  # millisecs
-		if self.verbose:
-			print '  %f ms' % self.msecs
+		self.msecs = self.secs * 1000
+		if self.callback:
+			self.callback.end(self.tid, self.secs)
+		else:
+			log.debug('%7.1f ms', self.msecs)
+
+
+class Steps:
+	steps = 23
+	total, calc_pr, calc_loud, calc_tp, calc_ebur128, calc_plr, calc_spec, calc_ap, calc_hist, calc_pvsr, calc_dr, calc_csum, draw_plot, draw_left, draw_right, draw_loud, draw_spec, draw_ap, draw_hist, draw_pvsr, draw_stc, draw_ebur128, save = range(steps)
+	times = [0]*steps
+	descs = ['']*steps
+
+	@classmethod
+	def start(cls, tid, desc=False):
+		if desc:
+			cls.descs[tid] = desc
+			log.info(desc)
+
+	@classmethod
+	def end(cls, tid, secs):
+		log.debug('%7.1f ms', secs*1000)
+		cls.times[tid] = secs
+
+	@classmethod
+	def report(cls):
+		for desc,t in zip(cls.descs, cls.times):
+			print "%s took %5.1f %%" % (desc, 100*t/cls.times[0])
+
+
+class Supervisor(object):
+	pass
+
 
 def load_file(infile):
 	src = 'file'
@@ -89,15 +121,15 @@ def load_file(infile):
 			for binext in ['', '.exe']:
 				binpath = os.path.join(ospath, 'ffmpeg') + binext
 				if os.path.isfile(binpath):
-					print 'Found ffmpeg', binpath
+					log.debug('Found ffmpeg at %s', binpath)
 					ffmpeg_bin = binpath
 					found = True
 					break
 			if ffmpeg_bin: break
 		if not ffmpeg_bin:
-			print "Could not find ffmpeg"
+			log.warning("Could not find ffmpeg")
 			return 1
-		print "Converting using ffmpeg"
+		log.info("Converting using ffmpeg")
 		tmpfd, tmpfile = mkstemp(suffix='.wav')
 		try:
 			output = subprocess.check_output(
@@ -105,52 +137,53 @@ def load_file(infile):
 				stderr=subprocess.STDOUT
 			)
 			infile = tmpfile
-			print output
+			log.debug(output)
 			for line in output.splitlines():
 				match = re.match('^Output.*', line)
 				if match:
-					print "Parsed metadata"
+					log.debug("Parsed metadata")
 					break
 				match = re.match('^Input.*?, (.*?),.*', line, flags=re.I)
 				if match:
-					print "fmt", match.groups()
+					log.debug("fmt %s", match.groups())
 					fmt = match.group(1)
 				match = re.match('\s*title\s*?: (.*)', line, flags=re.I)
 				if match:
-					print "title", match.groups()
+					log.debug("title %s", match.groups())
 					title = match.group(1).decode('utf-8')
 				match = re.match('\s*artist\s*?: (.*)', line, flags=re.I)
 				if match:
-					print "artist", match.groups()
+					log.debug("artist %s", match.groups())
 					artist = match.group(1).decode('utf-8')
 				match = re.match('\s*album\s*?: (.*)', line, flags=re.I)
 				if match:
-					print "album", match.groups()
+					log.debug("album %s", match.groups())
 					album = match.group(1).decode('utf-8')
 				match = re.match('\s*track\s*?: (.*)', line, flags=re.I)
 				if match:
-					print "track", match.groups()
+					log.debug("track %s", match.groups())
 					track = match.group(1)
 				match = re.match('\s*date\s*?: (.*)', line, flags=re.I)
 				if match:
-					print "date", match.groups()
+					log.debug("date %s", match.groups())
 					date = match.group(1)
 				match = re.match('\s*Duration:.*bitrate: (\d*?) kb/s', line)
 				if match:
-					print "bps", match.groups()
+					log.debug("bps %s", match.groups())
 					bps = match.group(1) + ' kbps'
 				match = re.match('\s*Stream.*?Audio: (.*?),.*, (\d*?) kb/s', line)
 				if match:
-					print "fmt, bps", match.groups()
+					log.debug("fmt, bps %s", match.groups())
 					stream_fmt, bps = match.group(1, 2)
 					bps = bps + ' kbps'
 		except CalledProcessError as e:
-			print 'Could not convert %s' % infile
+			log.warning('Could not convert %s', infile)
 			exit(e.returncode)
 	fs, raw_data = wavfile.read(infile)
 	if len(raw_data.shape) == 1:
 		raw_data = np.array([raw_data]).transpose()
 	enc = str(raw_data.dtype)
+	log.debug("Encoding: %s", enc)
 	nf, nc = raw_data.shape
 	sec = nf/fs
 	bits = 16
@@ -163,7 +196,8 @@ def load_file(infile):
 	data /= 2**(bits-1)
 	if tmpfile and os.path.isfile(tmpfile):
 		os.close(tmpfd)
-		os.remove(tmpfile)
+		if not DEBUG:
+			os.remove(tmpfile)
 
 	if not fmt:
 		fmt = ext
@@ -183,7 +217,7 @@ def load_file(infile):
 			'source': src,
 			'filename': basename(infile),
 			'extension': ext,
-			'format': fmt,
+			'encoding': fmt,
 			'name': name,
 			'artist': artist,
 			'title': title,
@@ -200,7 +234,7 @@ def load_spotify(link, username, password):
 	track = dumper.dump(link)
 	return track
 
-#@profile
+
 def analyze(track):
 	data = track['data']['float']
 	raw_data = track['data']['fixed']
@@ -211,14 +245,14 @@ def analyze(track):
 	sec = track['duration']
 	name = track['metadata']['filename']
 	ext = track['metadata']['extension']
+	enc = track['metadata']['encoding']
 	bps = track['metadata']['bps']
 
-	print "Processing %s" % name
-	print "\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tformat: %s\n\tbitrate: %s" % (fs, nc, nf, bits, ext, bps)
+	log.info("Processing %s", name)
+	log.debug("\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tencoding: %s\n\tbitrate: %s", fs, nc, nf, bits, enc, bps)
 
 	# Peak / RMS
-	with Timer(True) as t:
-		print 'Calculating peak and RMS...'
+	with Timer('Calculating peak and RMS...', Steps.calc_pr, Steps) as t:
 		data_rms = rms(data, 1)
 		data_peak = np.abs(data).max(1)
 
@@ -232,8 +266,7 @@ def analyze(track):
 		crest_db = db(data_peak, data_rms)
 
 	# Loudest
-	with Timer(True) as t:
-		print 'Calculating loudest...'
+	with Timer('Calculating loudest...', Steps.calc_loud, Steps) as t:
 		window = int(fs / 50)
 		peak = data_peak.max()
 		sn_max = 0
@@ -263,9 +296,8 @@ def analyze(track):
 			w_max = (nf - fs/10, nf)
 
 	# True peaks
-	with Timer(True) as t:
-		print 'Calculating true peaks...'
-		fir = np.array(FIR)
+	with Timer('Calculating true peaks...', Steps.calc_tp, Steps) as t:
+		fir = fir_coeffs()
 		fir_phases, fir_size = fir.shape
 		d_size = data.itemsize
 		strides = nf-fir_size
@@ -283,8 +315,7 @@ def analyze(track):
 		true_peak_dbtp = db(true_peak, 1.0)
 
 	# EBU R.128
-	with Timer(True) as t:
-		print 'Calculating EBU R 128...'
+	with Timer('Calculating EBU R 128...', Steps.calc_ebur128, Steps) as t:
 		l_kg = itu1770(data, fs, gated=True)
 		steps = int((nf-3*fs)/fs)+1
 		stl = np.zeros(steps)
@@ -302,8 +333,7 @@ def analyze(track):
 		lra = stl_high - stl_low
 
 	# PLR
-	with Timer(True) as t:
-		print 'Calculatin PLR...'
+	with Timer('Calculatin PLR...', Steps.calc_plr, Steps) as t:
 		plr_lu = true_peak_dbtp.max() - l_kg
 		#print plr_lu
 		#print sttp
@@ -312,8 +342,7 @@ def analyze(track):
 		#print stl
 
 	# Spectrum
-	with Timer(True) as t:
-		print 'Calculating spectrum...'
+	with Timer('Calculating spectrum...', Steps.calc_spec, Steps) as t:
 		frames = nf/fs
 		wfunc = np.blackman(fs)
 		norm_spec = np.zeros((nc,fs))
@@ -323,8 +352,7 @@ def analyze(track):
 			norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
 
 	# Allpass
-	with Timer(True) as t:
-		print 'Calculating allpass...'
+	with Timer('Calculating allpass...', Steps.calc_ap, Steps) as t:
 		ap_freqs = np.array([20, 60, 200, 600, 2000, 6000, 20000])
 		ap_crest = np.zeros((len(ap_freqs),nc))
 		ap_rms = np.zeros((len(ap_freqs),nc))
@@ -338,8 +366,7 @@ def analyze(track):
 			ap_crest[i] = db(ap_peak[i], ap_rms[i])
 
 	# Histogram
-	with Timer(True) as t:
-		print 'Calculating histogram...'
+	with Timer('Calculating histogram...', Steps.calc_hist, Steps) as t:
 		hbits = bits
 		if bits > 16:
 			hbits = 16
@@ -352,8 +379,7 @@ def analyze(track):
 			hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
 
 	# Peak vs RMS
-	with Timer(True) as t:
-		print 'Calculating peak vs RMS...'
+	with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, Steps) as t:
 		n_1s = nf/fs
 		peak_1s_dbfs = np.zeros((nc, n_1s))
 		rms_1s_dbfs = np.zeros((nc, n_1s))
@@ -367,8 +393,7 @@ def analyze(track):
 				crest_1s_db[c][i] = db(a, b)
 
 	# DR
-	with Timer(True) as t:
-		print 'Calculating DR...'
+	with Timer('Calculating DR...', Steps.calc_dr, Steps) as t:
 		dr_blocks = int(nf/(3.0*fs))
 		dr_nf = dr_blocks*3*fs
 		dr_tail = nf - dr_nf
@@ -382,13 +407,12 @@ def analyze(track):
 		dr_peak.sort()
 		dr_20 = int(round(dr_rms.shape[1]*0.2))
 		if dr_20 < 1:
-			print 'WARNING: Too few DR blocks'
+			log.warning('WARNING: Too few DR blocks')
 			dr_20 = 1
 		dr_ch = -20*np.log10( np.sqrt((dr_rms[:,-dr_20:]**2).mean(1, keepdims=True)) / dr_peak[:,[-2]] )
 		dr = int(round(dr_ch.mean()))
 
-	with Timer(True) as t:
-		print 'Calculating checksum...'
+	with Timer('Calculating checksum...', Steps.calc_csum, Steps) as t:
 		checksum = (raw_data.astype('uint32')**2).sum()
 
 	#
@@ -403,7 +427,7 @@ def analyze(track):
 		'nf_max': nf_max,
 		'norm_spec': norm_spec,
 		'frames': frames,
-		'n_1s': n_1s, # FIXME: same as frames?
+		'n_1s': n_1s,
 		'ap_freqs': ap_freqs,
 		'ap_crest': ap_crest,
 		'hist': hist,
@@ -445,12 +469,11 @@ def render(track, analysis, header):
 	plr = analysis['plr_lu']
 	checksum = analysis['checksum']
 	lufs_to_lu = 23.0
-	with Timer(True) as t:
-		print "Drawing plot..."
+	with Timer("Drawing plot...", Steps.draw_plot, Steps) as t:
 		c_color = ['b', 'r']
 		c_name = ['left', 'right']
 		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_db.mean(), dr, l_kg+lufs_to_lu, lra, plr)
-		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Bitrate: %s,  Source: %s' % (track['metadata']['format'], track['channels'], track['bitdepth'], track['metadata']['bps'], track['metadata']['source'])
+		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Bitrate: %s,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], track['metadata']['bps'], track['metadata']['source'])
 		subtitle_meta = []
 		if track['metadata']['album']:
 			subtitle_meta.append('Album: %.*s' % (50, track['metadata']['album']))
@@ -478,8 +501,7 @@ def render(track, analysis, header):
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
 	fs = track['samplerate']
-	with Timer(True) as t:
-		print "Drawing left channel..."
+	with Timer("Drawing left channel...", Steps.draw_left, Steps) as t:
 		ax_lch = subplot(gs[0,:])
 		new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
 		new_fs = new_nf/float(sec)
@@ -495,8 +517,7 @@ def render(track, analysis, header):
 
 	if nc > 1:
 		# Right channel
-		with Timer(True) as t:
-			print "Drawing right channel..."
+		with Timer("Drawing right channel...", Steps.draw_right, Steps) as t:
 			ax_rch = subplot(gs[1,:], sharex=ax_lch)
 			new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
 			new_fs = new_nf/float(sec)
@@ -517,8 +538,7 @@ def render(track, analysis, header):
 	# Loudest
 	f_max = analysis['f_max']
 	nf_max = analysis['nf_max']
-	with Timer(True) as t:
-		print "Drawing loudest..."
+	with Timer("Drawing loudest...", Steps.draw_loud, Steps) as t:
 		ax_max = subplot(gs[2,:])
 		plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 		ylim(-1.0, 1.0)
@@ -533,8 +553,7 @@ def render(track, analysis, header):
 	# Spectrum
 	norm_spec = analysis['norm_spec']
 	frames = analysis['frames']
-	with Timer(True) as t:
-		print "Drawing spectrum..."
+	with Timer("Drawing spectrum...", Steps.draw_spec, Steps) as t:
 		ax_norm = subplot(gs[3,0])
 		semilogx(
 			[0.02, 0.06], [-80, -90], 'k-',
@@ -573,8 +592,7 @@ def render(track, analysis, header):
 	# Allpass
 	ap_freqs = analysis['ap_freqs']
 	ap_crest = analysis['ap_crest']
-	with Timer(True) as t:
-		print "Drawing allpass..."
+	with Timer("Drawing allpass...", Steps.draw_ap, Steps) as t:
 		ax_ap = subplot(gs[3,1])
 		semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
 		if nc > 1:
@@ -594,8 +612,7 @@ def render(track, analysis, header):
 	# Histogram
 	hist = analysis['hist']
 	hist_bits = analysis['hist_bits']
-	with Timer(True) as t:
-		print "Drawing histogram..."
+	with Timer("Drawing histogram...", Steps.draw_hist, Steps) as t:
 		ax_hist = subplot(gs[4,0])
 		new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
 		new_hist[(new_hist == 1.0)] = 1.3
@@ -620,8 +637,7 @@ def render(track, analysis, header):
 	# Peak vs RMS
 	rms_1s_dbfs = analysis['rms_1s_dbfs']
 	peak_1s_dbfs = analysis['peak_1s_dbfs']
-	with Timer(True) as t:
-		print "Drawing peak vs RMS..."
+	with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, Steps) as t:
 		ax_pr = subplot(gs[4,1])
 		plot(
 			[-50,    0], [-50, 0], 'k-',
@@ -650,8 +666,7 @@ def render(track, analysis, header):
 	# Shortterm crest
 	crest_1s_db = analysis['crest_1s_db']
 	n_1s = analysis['n_1s']
-	with Timer(True) as t:
-		print "Drawing short term crest..."
+	with Timer("Drawing short term crest...", Steps.draw_stc, Steps) as t:
 		ax_1s = subplot(gs[5,:])
 		plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
 		if nc > 1:
@@ -670,15 +685,14 @@ def render(track, analysis, header):
 	# EBU R 128
 	stl = analysis['stl']
 	stplr = analysis['stplr_lu']
-	with Timer(True) as t:
-		print "Drawing EBU R 128 loudness..."
+	with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, Steps) as t:
 		ax_ebur128 = subplot(gs[6,:])
 		plot(np.arange(stl.size)+1.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
 		ylim(-18,18)
 		xlim(0,n_1s)
 		yticks([-10, 0, 10], (-10,0,''))
 		title("EBU R 128 Short term loudness", fontsize='small', loc='left')
-		title("Short term PLR", fontsize='small', loc='right')
+		title("Short term PLR", fontsize='small', loc='right', color='grey')
 		xlabel('s', fontsize='small')
 		ylabel('LU', fontsize='small', rotation=0)
 		ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
@@ -696,8 +710,7 @@ def render(track, analysis, header):
 		ax_ebur128_stplr.tick_params(axis='y', which='major', labelsize='xx-small')
 
 	# Save
-	with Timer(True) as t:
-		print "Saving..."
+	with Timer("Saving...", Steps.save, Steps) as t:
 		f = io.BytesIO()
 		plt.savefig(f, format='png', dpi=dpi, transparent=False)
 	return f
@@ -804,6 +817,7 @@ def ap_coeffs(fc, fs):
 	a = [1.0, -p_d]
 	return (b, a)
 
+
 def kfilter_coeffs(fs):
 	# Pre filter
 	f0 = 1500.0;
@@ -839,6 +853,16 @@ def kfilter_coeffs(fs):
 	b = signal.convolve(b_pre, b_hp)
 	a = signal.convolve(a_pre, a_hp)
 	return (b, a)
+
+
+def fir_coeffs():
+	return np.array([
+		[-0.001780280772489,  0.003253283030257, -0.005447293390376,  0.008414568116553, -0.012363296099675,  0.017436805871070, -0.024020143876810, 0.032746828420101, -0.045326602900760, 0.066760686868173, -0.120643370377371, 0.989429605248410, 0.122160009958442, -0.046376232812786, 0.022831393004364, -0.011580897261667, 0.005358105753167, -0.001834671998839, -0.000103681038815,  0.001002216283171, -0.001293611238062,  0.001184842429930, -0.000908719377960,  0.002061304229100],
+		[-0.001473218555432,  0.002925336766866, -0.005558126468508,  0.009521159741206, -0.015296028027209,  0.023398977482278, -0.034752051245281, 0.050880967772373, -0.075227488678419, 0.116949442543490, -0.212471239510148, 0.788420616540440, 0.460788819545818, -0.166082211358253, 0.092555759769552, -0.057854829231334, 0.037380809681132, -0.024098441541823,  0.015115653825711, -0.009060645712669,  0.005033299068467, -0.002511544062471,  0.001030723665756, -0.000694079453823],
+		[-0.000694079453823,  0.001030723665756, -0.002511544062471,  0.005033299068467, -0.009060645712669,  0.015115653825711, -0.024098441541823, 0.037380809681132, -0.057854829231334, 0.092555759769552, -0.166082211358253, 0.460788819545818, 0.788420616540440, -0.212471239510148, 0.116949442543490, -0.075227488678419, 0.050880967772373, -0.034752051245281,  0.023398977482278, -0.015296028027209,  0.009521159741206, -0.005558126468508,  0.002925336766866, -0.001473218555432],
+		[ 0.002061304229100, -0.000908719377960,  0.001184842429930, -0.001293611238062,  0.001002216283171, -0.000103681038815, -0.001834671998839, 0.005358105753167, -0.011580897261667, 0.022831393004364, -0.046376232812786, 0.122160009958442, 0.989429605248410, -0.120643370377371, 0.066760686868173, -0.045326602900760, 0.032746828420101, -0.024020143876810,  0.017436805871070, -0.012363296099675,  0.008414568116553, -0.005447293390376,  0.003253283030257, -0.001780280772489]
+	])
+
 
 def itu1770(data, fs, gated=False):
 	nc = data.shape[0]
@@ -892,26 +916,33 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 	loader_args = []
 	spotify = False
 	if os.path.isfile(infile):
-		print "Selecting file loader"
+		log.debug("Selecting file loader")
 		loader = load_file
 		loader_args = [infile]
 	elif infile.startswith('spotify:'):
-		print "Selecting Spotify loader"
+		log.debug("Selecting Spotify loader")
 		loader = load_spotify
 		loader_args = [infile, username, password]
 		spotify = True
 	track = loader(*loader_args)
+	with Timer("Hashing PCM data") as t:
+		data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
+		log.debug(data_id)
 	if not outfile and spotify:
 		outfile = "%s.spotify-pymasvis.png" % track['metadata']['name']
 	elif not outfile:
 		outfile = "%s-pymasvis.png" % infile
 	if not header:
 		header = "%s" % (track['metadata']['name'])
-	analysis = analyze(track)
-	picture = render(track, analysis, header)
-	img = Image.open(picture)
-	img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
-	img.save(outfile, 'PNG')
+	with Timer('Running...', Steps.total, Steps) as t:
+		with Timer('Analyzing...') as ta:
+			analysis = analyze(track)
+		with Timer('Rendering...') as tr:
+			result = render(track, analysis, header)
+			img = Image.open(result)
+			img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
+			img.save(outfile, 'PNG')
+	Steps.report()
 
 
 if __name__ == "__main__":
@@ -919,12 +950,24 @@ if __name__ == "__main__":
 	import glob
 	usage = "usage: %prog [options] arg"
 	op = optparse.OptionParser(usage)
+	op.add_option("-v", "--verbose", action="store_true", help="Verbose messages")
+	op.add_option("-d", "--debug", action="store_true", help="Debug info")
 	op.add_option("-u", "--username", help="Spotify username")
 	op.add_option("-p", "--password", help="Spotify password")
 	(options, args) = op.parse_args()
 	if len(args) == 0:
 		op.print_help()
 		exit(0)
+	log = logging.getLogger('pymasvis')
+	log.setLevel(logging.WARNING)
+	if options.verbose:
+		log.setLevel(logging.INFO)
+	if options.debug:
+		DEBUG = True
+		log.setLevel(logging.DEBUG)
+	lh = logging.StreamHandler()
+	lh.setFormatter(logging.Formatter("%(message)s"))
+	log.addHandler(lh)
 	candidates = []
 	for arg in args:
 		if arg.startswith('spotify:'):
