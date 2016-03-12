@@ -220,13 +220,12 @@ def load_file(infile):
 	except CalledProcessError as e:
 		log.warning('Could not convert %s', infile)
 		exit(e.returncode)
-	raw_data = np.frombuffer(outbuf, dtype=conv['dtype'])
+	raw_data = np.frombuffer(outbuf, dtype=conv['dtype']).reshape((nc, -1), order='F').copy(order='C')
 	log.debug(raw_data.shape)
-	nf = raw_data.shape[0] / nc
+	nf = raw_data[0].shape[0]
 	sec = nf / float(fs)
 	if bits == 24:
 		raw_data /= 2**8
-	raw_data = raw_data.reshape((nc, nf), order='F').copy(order='C')
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
 	if not fmt:
