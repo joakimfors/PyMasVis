@@ -909,7 +909,8 @@ def itu1770(data, fs, gated=False):
 		for i in range(steps):
 			j = i*nf_step
 			z[:,i:i+1] = (data_k[:,j:j+nf_gate]**2).mean(1, keepdims=True)
-		l = -0.691 + 10.0*np.log10((g*z).sum(0))
+		with np.errstate(divide='ignore'):
+			l = -0.691 + 10.0*np.log10((g*z).sum(0))
 		gamma_a = -70
 		j_a = np.flatnonzero(l > gamma_a)
 		gamma_r = -0.691 + 10.0*np.log10( (g*(np.take(z, j_a, 1).mean(1, keepdims=1))).sum() ) - 10
@@ -918,7 +919,8 @@ def itu1770(data, fs, gated=False):
 		return l_kg
 	else:
 		z = (data_k**2).mean(1, keepdims=1)
-		l_k = -0.691 + 10.0*np.log10( (g*z).sum() )
+		with np.errstate(divide='ignore'):
+			l_k = -0.691 + 10.0*np.log10( (g*z).sum() )
 		return l_k
 
 
