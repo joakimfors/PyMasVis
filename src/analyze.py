@@ -47,7 +47,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.10.0"
+VERSION="0.10.1"
 
 DEBUG=False
 
