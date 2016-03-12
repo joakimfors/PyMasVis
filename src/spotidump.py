@@ -93,7 +93,7 @@ class SpotiDump:
 		date = track.album.year
 		tracknumber = track.index
 		name = '%s - %s' % (artist, title)
-		self.duration = duration = track.duration / 1000
+		self.duration = duration = track.duration / 1000.0
 		self.start = time.time()
 		print 'Dumping %s' % name
 		self.session.player.load(track)
