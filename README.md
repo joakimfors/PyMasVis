@@ -12,16 +12,15 @@ Analyze a file by running `python src/analyze.py filename`. The result will be o
 
 ## Requirements
 
+- FFmpeg
 - NumPy
 - SciPy
 - Matplotlib
-- Pillow or PIL
+- Pillow
 - (pyspotify)
 
-FFmpeg is required for anything other than WAV files.
 
-
-### Requirement installation
+### Python requirements installation
 
 For standard usage on .wav files:
 
@@ -30,16 +29,16 @@ For standard usage on .wav files:
 	pip install matplotlib
 	pip install pillow
 
-To analyze spotify URIs:
+To analyze tracks from Spotify:
 
 	pip install pyspotify
 
 
 ## Notes
 
-PyMasVis supports WAV files. MP3 and other formats are supported if FFmpeg is installed.
+PyMasVis suppports all files that FFmpeg supports as PyMasVis uses FFmpeg to convert the file to raw PCM data before analysis.
 
-Histogram is calculated using a maximum of 2^16 bins regardless of real bit depth. The "bits" result is scaled to the presumed real bit depth.
+Histogram is calculated using a maximum of 2^18 bins regardless of real bit depth. The "bits" result is scaled to the presumed real bit depth.
 
 
 ## Troubleshooting
