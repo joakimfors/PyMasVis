@@ -114,155 +114,121 @@ def load_file(infile):
 	track = None
 	bps = 1411000
 	bits = 16
-	tmpfile = None
-	if ext != "wav" or True:
-		ffmpeg_bin = None
-		paths = [d for d in sys.path if 'Contents/Resources' in d]
-		paths.extend(os.getenv('PATH').split(os.pathsep))
-		for ospath in paths:
-			for binext in ['', '.exe']:
-				binpath = os.path.join(ospath, 'ffmpeg') + binext
-				if os.path.isfile(binpath):
-					log.debug('Found ffmpeg at %s', binpath)
-					ffmpeg_bin = binpath
-					found = True
-					break
-			if ffmpeg_bin: break
-		if not ffmpeg_bin:
-			log.warning("Could not find ffmpeg")
-			return 1
-		tmpfd, tmpfile = mkstemp(suffix='.raw')
-		log.info("Probing file")
-		try:
-			# Could use ffprobe
-			output = subprocess.check_output(
-				['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
-				stderr=subprocess.STDOUT
-			)
-			log.debug(output)
-			probe = json.loads(output)
-			print probe
+	ffmpeg_bin = None
+	paths = [d for d in sys.path if 'Contents/Resources' in d]
+	paths.extend(os.getenv('PATH').split(os.pathsep))
+	for ospath in paths:
+		for binext in ['', '.exe']:
+			binpath = os.path.join(ospath, 'ffmpeg') + binext
+			if os.path.isfile(binpath):
+				log.debug('Found ffmpeg at %s', binpath)
+				ffmpeg_bin = binpath
+				found = True
+				break
+		if ffmpeg_bin: break
+	if not ffmpeg_bin:
+		log.warning("Could not find ffmpeg")
+		return 1
+	log.info("Probing file")
+	try:
+		output = subprocess.check_output(
+			['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
+			stderr=subprocess.STDOUT
+		)
+		log.debug(output)
+		probe = json.loads(output)
+		container = probe['format']
+		stream = probe['streams'][0]
 
-			container = probe['format']
-			stream = probe['streams'][0]
+		if 'format_name' in container:
+			fmt = container['format_name']
+		if 'bit_rate' in container:
+			bps = int(container['bit_rate'])
+		if 'bit_rate' in stream:
+			bps = int(stream['bit_rate'])
+		if 'duration_ts' in stream:
+			nf = int(stream['duration_ts'])
+		if 'sample_rate' in stream:
+			fs = int(stream['sample_rate'])
+		if 'channels' in stream:
+			nc = stream['channels']
+		if 'bits_per_raw_sample' in stream:
+			bits = int(stream['bits_per_raw_sample'])
+		if 'bits_per_sample' in stream and int(stream['bits_per_sample']) > 0:
+			bits = int(stream['bits_per_sample'])
+		if 'duration' in stream:
+			sec = float(stream['duration'])
+		if 'codec_name' in stream:
+			enc = stream['codec_name']
+			if 'pcm_' == enc[0:4]:
+				enc = fmt.split(',')[0]
 
-			if 'format_name' in container:
-				fmt = container['format_name']
-			if 'bit_rate' in container:
-				bps = int(container['bit_rate'])
-			if 'bit_rate' in stream:
-				bps = int(stream['bit_rate'])
-			if 'duration_ts' in stream:
-				nf = int(stream['duration_ts'])
-			if 'sample_rate' in stream:
-				fs = int(stream['sample_rate'])
-			if 'channels' in stream:
-				nc = stream['channels']
-			if 'bits_per_raw_sample' in stream:
-				bits = int(stream['bits_per_raw_sample'])
-			if 'bits_per_sample' in stream and int(stream['bits_per_sample']) > 0:
-				bits = int(stream['bits_per_sample'])
-			if 'duration' in stream:
-				sec = float(stream['duration'])
-			if 'codec_name' in stream:
-				enc = stream['codec_name']
-				if 'pcm_' == enc[0:4]:
-					enc = fmt.split(',')[0]
+		if 'tags' in container:
+			if 'artist' in container['tags']:
+				artist = container['tags']['artist']
+			if 'title' in container['tags']:
+				title = container['tags']['title']
+			if 'album' in container['tags']:
+				album = container['tags']['album']
+			if 'track' in container['tags']:
+				track = int(container['tags']['track'].split('/')[0])
+			if 'date' in container['tags']:
+				date = container['tags']['date']
 
-			if 'tags' in container:
-				if 'artist' in container['tags']:
-					artist = container['tags']['artist']
-				if 'title' in container['tags']:
-					title = container['tags']['title']
-				if 'album' in container['tags']:
-					album = container['tags']['album']
-				if 'track' in container['tags']:
-					track = int(container['tags']['track'].split('/')[0])
-				if 'date' in container['tags']:
-					date = container['tags']['date']
-
-			print {
-				'frames': nf,
-				'samplerate': fs,
-				'channels': nc,
-				'bitdepth': bits,
-				'duration': sec,
-				'format': fmt,
-				'metadata': {
-					'source': src,
-					'filename': basename(infile),
-					'extension': ext,
-					'encoding': enc,
-					'name': name,
-					'artist': artist,
-					'title': title,
-					'album': album,
-					'track': track,
-					'date': date,
-					'bps': bps
-				}
+		print {
+			'frames': nf,
+			'samplerate': fs,
+			'channels': nc,
+			'bitdepth': bits,
+			'duration': sec,
+			'format': fmt,
+			'metadata': {
+				'source': src,
+				'filename': basename(infile),
+				'extension': ext,
+				'encoding': enc,
+				'name': name,
+				'artist': artist,
+				'title': title,
+				'album': album,
+				'track': track,
+				'date': date,
+				'bps': bps
 			}
+		}
 
-			convs = {
-				8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
-				16: {'format': 's16le', 'codec': 'pcm_s16le', 'dtype': np.dtype('<i2')},
-				24: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')},
-				32: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')}
-			}
+		convs = {
+			8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
+			16: {'format': 's16le', 'codec': 'pcm_s16le', 'dtype': np.dtype('<i2')},
+			24: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')},
+			32: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')}
+		}
 
-			conv = convs[bits]
-
-
-		except CalledProcessError as e:
-			log.warning('Could not check %s', infile)
-			exit(e.returncode)
-		log.info("Converting using ffmpeg")
-		command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-map_metadata', '-1:g', '-map_metadata', '-1:s', '-flags', 'bitexact', tmpfile]
-		if False and 'pcm_' == stream['codec_name'][0:4]:
-			conv = convs[16]
-			command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', 'copy', tmpfile]
-		else:
-			command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', tmpfile]
-		try:
-			output = subprocess.check_output(
-				command,
-				stderr=subprocess.STDOUT
-			)
-			infile = tmpfile
-			log.debug(output)
-		except CalledProcessError as e:
-			print e
-			log.warning('Could not convert %s', infile)
-			exit(e.returncode)
-	"""fs, raw_data = wavfile.read(infile)
-	if len(raw_data.shape) == 1:
-		raw_data = np.array([raw_data]).transpose()"""
-
-	"""enc = str(raw_data.dtype)
-	log.debug("Encoding: %s", enc)
-	nf, nc = raw_data.shape
-	sec = nf/fs
-	bits = 16
-	for b in [8, 16, 24, 32, 64]:
-		if enc.find(str(b)) > -1:
-			bits = b
-			break"""
-	raw_data = np.fromfile(infile, dtype=conv['dtype'])
+		conv = convs[bits]
+	except CalledProcessError as e:
+		log.warning('Could not probe %s', infile)
+		exit(e.returncode)
+	log.info("Converting using ffmpeg")
+	command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
+	try:
+		p = subprocess.Popen(
+			command,
+			stdout=subprocess.PIPE,
+			stderr=None
+		)
+		outbuf = p.stdout.read()
+	except CalledProcessError as e:
+		log.warning('Could not convert %s', infile)
+		exit(e.returncode)
+	raw_data = np.frombuffer(outbuf, dtype=conv['dtype'])
+	log.debug(raw_data.shape)
+	nf = raw_data.shape[0] / nc
+	sec = nf / float(fs)
 	if bits == 24:
 		raw_data /= 2**8
-	print raw_data.shape
-	print raw_data.flags
-	print raw_data.strides
-	print raw_data.itemsize
 	raw_data = raw_data.reshape((nc, nf), order='F').copy(order='C')
-	print raw_data[0].flags
 	data = raw_data.astype('float')
 	data /= 2**(bits-1)
-	if tmpfile and os.path.isfile(tmpfile):
-		os.close(tmpfd)
-		if not DEBUG:
-			os.remove(tmpfile)
-	#exit(1)
 	if not fmt:
 		fmt = ext
 	if artist and title:
