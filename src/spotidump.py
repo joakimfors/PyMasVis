@@ -129,7 +129,7 @@ class SpotiDump:
 				'album': album,
 				'track': tracknumber,
 				'date': date,
-				'bps': '320 kbps'
+				'bps': 320000
 			}
 		}
 
