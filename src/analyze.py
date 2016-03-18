@@ -139,6 +139,10 @@ def load_file(infile):
 		probe = json.loads(output)
 		container = probe['format']
 		stream = probe['streams'][0]
+		if 'tags' in container:
+			tags = {k.lower():v for k,v in container['tags'].items()}
+		else:
+			tags = {}
 
 		if 'format_name' in container:
 			fmt = container['format_name']
@@ -163,17 +167,16 @@ def load_file(infile):
 			if 'pcm_' == enc[0:4]:
 				enc = fmt.split(',')[0]
 
-		if 'tags' in container:
-			if 'artist' in container['tags']:
-				artist = container['tags']['artist']
-			if 'title' in container['tags']:
-				title = container['tags']['title']
-			if 'album' in container['tags']:
-				album = container['tags']['album']
-			if 'track' in container['tags']:
-				track = int(container['tags']['track'].split('/')[0])
-			if 'date' in container['tags']:
-				date = container['tags']['date']
+		if 'artist' in tags:
+			artist = tags['artist']
+		if 'title' in tags:
+			title = tags['title']
+		if 'album' in tags:
+			album = tags['album']
+		if 'track' in tags:
+			track = int(tags['track'].split('/')[0])
+		if 'date' in tags:
+			date = tags['date']
 
 		print {
 			'frames': nf,
