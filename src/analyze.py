@@ -1005,6 +1005,9 @@ if __name__ == "__main__":
 	log.addHandler(lh)
 	candidates = []
 	for arg in args:
+		if os.path.isfile(os.path.expanduser(arg)):
+			candidates.append(os.path.expanduser(arg))
+			continue
 		if arg.startswith('spotify:'):
 			from spotidump import SpotiDump
 			candidates.append(arg)
