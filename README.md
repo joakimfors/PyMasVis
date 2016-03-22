@@ -22,7 +22,9 @@ Analyze a file by running `python src/analyze.py filename`. The result will be o
 
 ### Python requirements installation
 
-For standard usage on .wav files:
+Systems with a package manager might have the required packages available through it. If that is not possible then installation using for example `pip` might be possible.
+
+For standard usage:
 
 	pip install numpy
 	pip install scipy
