@@ -95,7 +95,7 @@ class Steps:
 	@classmethod
 	def report(cls):
 		for desc,t in zip(cls.descs, cls.times):
-			print "%s took %5.1f %%" % (desc, 100*t/cls.times[0])
+			log.info("%s took %5.1f %%", desc, 100*t/cls.times[0])
 
 
 class Supervisor(object):
@@ -178,7 +178,7 @@ def load_file(infile):
 		if 'date' in tags:
 			date = tags['date']
 
-		print {
+		log.debug({
 			'frames': nf,
 			'samplerate': fs,
 			'channels': nc,
@@ -198,7 +198,7 @@ def load_file(infile):
 				'date': date,
 				'bps': bps
 			}
-		}
+		})
 
 		convs = {
 			8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
@@ -214,10 +214,14 @@ def load_file(infile):
 	log.info("Converting using ffmpeg")
 	command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
 	try:
+		if DEBUG:
+			ferr = None
+		else:
+			ferr = open(os.devnull, 'w')
 		p = subprocess.Popen(
 			command,
 			stdout=subprocess.PIPE,
-			stderr=None
+			stderr=ferr
 		)
 		outbuf = p.stdout.read()
 	except CalledProcessError as e:
