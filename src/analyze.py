@@ -985,44 +985,46 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 
 
 if __name__ == "__main__":
-	import optparse
+	import argparse
 	import glob
-	usage = "usage: %prog [options] arg"
-	op = optparse.OptionParser(usage)
-	op.add_option("-v", "--verbose", action="store_true", help="Verbose messages")
-	op.add_option("-d", "--debug", action="store_true", help="Debug info")
-	op.add_option("-u", "--username", help="Spotify username")
-	op.add_option("-p", "--password", help="Spotify password")
-	(options, args) = op.parse_args()
-	if len(args) == 0:
-		op.print_help()
-		exit(0)
+	parser = argparse.ArgumentParser(description="Analyze audio file or Spotify URI.")
+	parser.add_argument('--version', action='version', version='PyMasVis ' + VERSION)
+	parser.add_argument("-v", "--verbose", action="store_true", help="Verbose messages")
+	parser.add_argument("-d", "--debug", action="store_true", help="Debug info")
+	parser.add_argument("-u", "--username", metavar='username', help="Spotify username")
+	parser.add_argument("-p", "--password", metavar='password', help="Spotify password")
+	parser.add_argument('files', metavar='file', type=str, nargs='+', help='a file or Spotify URI to analyze')
+	args = parser.parse_args()
 	log = logging.getLogger('pymasvis')
 	log.setLevel(logging.WARNING)
-	if options.verbose:
+	if args.verbose:
 		log.setLevel(logging.INFO)
-	if options.debug:
+	if args.debug:
 		DEBUG = True
 		log.setLevel(logging.DEBUG)
 	lh = logging.StreamHandler()
 	lh.setFormatter(logging.Formatter("%(message)s"))
 	log.addHandler(lh)
 	candidates = []
-	for arg in args:
-		if os.path.isfile(os.path.expanduser(arg)):
-			candidates.append(os.path.expanduser(arg))
+	for f in args.files:
+		if os.path.isfile(os.path.expanduser(f)):
+			candidates.append(os.path.expanduser(f))
 			continue
-		if arg.startswith('spotify:'):
+		if f.startswith('spotify:'):
 			from spotidump import SpotiDump
-			candidates.append(arg)
+			candidates.append(f)
 			continue
-		for filename in glob.glob(os.path.expanduser(arg)):
+		for filename in glob.glob(os.path.expanduser(f)):
 			candidates.append(filename)
-	language, encoding = locale.getdefaultlocale()
+	for fsenc in [sys.getfilesystemencoding(), locale.getdefaultlocale()[1], 'ascii']:
+		if fsenc:
+			encoding = fsenc
+			break
 	if len(candidates) == 0:
 		print "No valid candidates for analysation found: " + " ".join(args)
 	for candidate in candidates:
 		infile = candidate.decode(encoding)
 		outfile = None
 		name = None
-		run(infile, outfile, name, options.username, options.password)
+		log.warning(infile)
+		run(infile, outfile, name, args.username, args.password)
