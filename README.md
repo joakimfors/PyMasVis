@@ -5,7 +5,7 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 
 ## Usage
 
-Analyze a file by running `python src/analyze.py filename`. The result will be output to `filename-pymasvis.png`. Spotify analysis is done by running `python src/analyze.py -u username -p password spotify_uri`. Result when using Spotify is output to the current working directory.
+Analyze a file by running `python src/analyze.py filename [filename ...]`. The result will be output to `filename-pymasvis.png`. Spotify analysis is done by running `python src/analyze.py -u username -p password spotify_uri`. Result when using Spotify is output to the current working directory.
 
 ![Example result](doc/Rick Astley - Never Gonna Give You Up.spotify-pymasvis.png)
 
