@@ -21,7 +21,6 @@ import io
 import sys
 import locale
 import subprocess
-import math
 import re
 import time
 import json
@@ -31,16 +30,12 @@ import scipy as sp
 import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
-import matplotlib.mlab as mlab
-import matplotlib.image as mpimg
 import scipy.signal as signal
 
 from os.path import basename
-from tempfile import mkstemp
 from hashlib import sha256
 from subprocess import CalledProcessError
 from numpy.lib.stride_tricks import as_strided
-from scipy.io import wavfile
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
