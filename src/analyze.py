@@ -47,7 +47,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.10.3"
+VERSION="0.10.4"
 
 DEBUG=False
 
@@ -137,6 +137,9 @@ def load_file(infile):
 		)
 		log.debug(output)
 		probe = json.loads(output)
+		if not probe['streams']:
+			log.warning("No audio stream found in %s", infile)
+			return 2
 		container = probe['format']
 		stream = probe['streams'][0]
 		if 'tags' in container:
@@ -964,6 +967,8 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		loader_args = [infile, username, password]
 		spotify = True
 	track = loader(*loader_args)
+	if type(track) is int:
+		return
 	with Timer("Hashing PCM data") as t:
 		data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
 		log.debug(data_id)
