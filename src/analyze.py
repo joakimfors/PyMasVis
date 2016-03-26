@@ -208,7 +208,7 @@ def load_file(infile):
 		conv = convs[bits]
 	except CalledProcessError as e:
 		log.warning('Could not probe %s', infile)
-		exit(e.returncode)
+		return e.returncode
 	log.info("Converting using ffmpeg")
 	command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
 	try:
@@ -224,7 +224,7 @@ def load_file(infile):
 		outbuf = p.stdout.read()
 	except CalledProcessError as e:
 		log.warning('Could not convert %s', infile)
-		exit(e.returncode)
+		return e.returncode
 	raw_data = np.frombuffer(outbuf, dtype=conv['dtype']).reshape((nc, -1), order='F').copy(order='C')
 	log.debug(raw_data.shape)
 	nf = raw_data[0].shape[0]
@@ -948,7 +948,27 @@ def arrays_share_data(x, y):
 	return get_data_base(x) is get_data_base(y)
 
 
-def run(infile, outfile=None, header=None, username=None, password=None):
+def file_formats():
+	foo = re.compile('\s+DE?\s+(\S+)\s+\S+')
+	formats = []
+	try:
+		result = subprocess.check_output(['ffprobe', '-v', 'quiet', '-formats'], stderr=subprocess.STDOUT)
+	except CalledProcessError as e:
+		log.debug(e)
+		return formats
+	for line in result.split('\n')[4:]:
+		bar = foo.match(line)
+		if bar:
+			formats += bar.group(1).split(',')
+	for foo in ['mjpeg', 'gif', 'vobsub']:
+		if foo in formats: formats.remove(foo)
+	return formats
+
+def list_files(dir, exts, max=0, level=0):
+	pass
+
+
+def run(infile, outfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
 	loader = None
 	loader_args = []
 	spotify = False
@@ -956,44 +976,66 @@ def run(infile, outfile=None, header=None, username=None, password=None):
 		log.debug("Selecting file loader")
 		loader = load_file
 		loader_args = [infile]
+		if not outfile:
+			basedir, filename = os.path.split(infile)
+			destdir = os.path.join(basedir, destdir)
+			filename = "%s-pymasvis.%s" % (filename, fmt)
+			outfile = os.path.join(destdir, filename)
+		if not update and os.path.isfile(outfile):
+			log.warning("Destination file %s already exists", outfile)
+			return
+		if not os.path.splitext(outfile)[1][1:] in ['png', 'jpg']:
+			log.warning("Only png and jpg supported as output format")
+			return
+		if destdir and not os.path.isdir(destdir):
+			log.debug("Creating destdir %s", destdir)
+			os.mkdir(destdir)
 	elif infile.startswith('spotify:'):
 		log.debug("Selecting Spotify loader")
 		loader = load_spotify
 		loader_args = [infile, username, password]
 		spotify = True
+	else:
+		log.warning("Unable to open input %s", infile)
+		return
+	#return
 	track = loader(*loader_args)
 	if type(track) is int:
 		return
-	with Timer("Hashing PCM data") as t:
-		data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
-		log.debug(data_id)
+	#with Timer("Hashing PCM data") as t:
+	#	data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
+	#	log.debug(data_id)
 	if not outfile and spotify:
-		outfile = "%s.spotify-pymasvis.png" % track['metadata']['name']
-	elif not outfile:
-		outfile = "%s-pymasvis.png" % infile
+		outfile = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
 	if not header:
 		header = "%s" % (track['metadata']['name'])
 	with Timer('Running...', Steps.total, Steps) as t:
 		with Timer('Analyzing...') as ta:
 			analysis = analyze(track)
 		with Timer('Rendering...') as tr:
-			result = render(track, analysis, header)
-			img = Image.open(result)
-			img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
-			img.save(outfile, 'PNG')
+			detailed, overview = render(track, analysis, header)
+			img = Image.open(detailed)
+			if fmt == 'png':
+				img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
+				img.save(outfile, 'PNG', optimize=True)
+			elif fmt == 'jpg':
+				img.save(outfile, 'JPEG', quality=80, optimize=True)
 	Steps.report()
 
 
 if __name__ == "__main__":
 	import argparse
-	import glob
 	parser = argparse.ArgumentParser(description="Analyze audio file or Spotify URI.")
-	parser.add_argument('--version', action='version', version='PyMasVis ' + VERSION)
-	parser.add_argument("-v", "--verbose", action="store_true", help="Verbose messages")
-	parser.add_argument("-d", "--debug", action="store_true", help="Debug info")
-	parser.add_argument("-u", "--username", metavar='username', help="Spotify username")
-	parser.add_argument("-p", "--password", metavar='password', help="Spotify password")
-	parser.add_argument('files', metavar='file', type=str, nargs='+', help='a file or Spotify URI to analyze')
+	parser.add_argument('--version', action='version', version="PyMasVis " + VERSION)
+	parser.add_argument('-v', '--verbose', action='store_true', help="verbose messages")
+	parser.add_argument('-d', '--debug', action='store_true', help="debug info")
+	parser.add_argument('-u', '--username', metavar='username', help="Spotify username")
+	parser.add_argument('-p', '--password', metavar='password', help="Spotify password")
+	parser.add_argument('-r', '--recursive', action='store_true', help="recurse directory tree if input is a directory")
+	parser.add_argument('--destdir', metavar='destdir', type=str, default='', help="destination directory to store analysis in")
+	parser.add_argument('--update', default='yes', type=str, choices=['yes', 'no'], help="choose wheter to update a result image or not, default: yes")
+	parser.add_argument('--format', default='png', type=str, choices=['png', 'jpg'], help="selects output format, default: png")
+	parser.add_argument('inputs', metavar='input', type=str, nargs='+', help='a file, directory or Spotify URI to analyze')
 	args = parser.parse_args()
 	log = logging.getLogger('pymasvis')
 	log.setLevel(logging.WARNING)
@@ -1005,26 +1047,35 @@ if __name__ == "__main__":
 	lh = logging.StreamHandler()
 	lh.setFormatter(logging.Formatter("%(message)s"))
 	log.addHandler(lh)
+	formats = file_formats()
 	candidates = []
-	for f in args.files:
-		if os.path.isfile(os.path.expanduser(f)):
-			candidates.append(os.path.expanduser(f))
-			continue
+	print args.inputs
+	for f in args.inputs:
 		if f.startswith('spotify:'):
 			from spotidump import SpotiDump
 			candidates.append(f)
 			continue
-		for filename in glob.glob(os.path.expanduser(f)):
-			candidates.append(filename)
-	for fsenc in [sys.getfilesystemencoding(), locale.getdefaultlocale()[1], 'ascii']:
+		if os.path.isfile(f):
+			candidates.append(f)
+			continue
+		if os.path.isdir(f):
+			for root, dirs, files in os.walk(f):
+				for name in files:
+					if os.path.splitext(name)[1][1:] in formats:
+						candidates.append(os.path.join(root, name))
+				if not args.recursive:
+					del dirs[:]
+	if len(candidates) == 0:
+		log.warning("No valid candidates for analysation found: " + " ".join(args.inputs))
+	encoding = 'ascii'
+	for fsenc in [sys.getfilesystemencoding(), locale.getdefaultlocale()[1]]:
 		if fsenc:
 			encoding = fsenc
 			break
-	if len(candidates) == 0:
-		print "No valid candidates for analysation found: " + " ".join(args)
+	update = {'yes': True, 'no': False}[args.update]
 	for candidate in candidates:
 		infile = candidate.decode(encoding)
 		outfile = None
-		name = None
+		header = None
 		log.warning(infile)
-		run(infile, outfile, name, args.username, args.password)
+		run(infile, outfile, args.format, args.destdir, update, header, args.username, args.password)
