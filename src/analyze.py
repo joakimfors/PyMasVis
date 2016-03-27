@@ -520,13 +520,14 @@ def render(track, analysis, header):
 		subtitle_meta = ',  '.join(subtitle_meta)
 		subtitle = '\n'.join([subtitle_analysis, subtitle_source, subtitle_meta])
 		dpi = 72
-		fig = plt.figure(figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
-		fig.suptitle(header, fontsize='medium', y=0.992)
-		fig.text(0.5, 0.975, subtitle, fontsize='small', horizontalalignment='center', verticalalignment='top', linespacing=1.6)
-		fig.text(0.075, 0.007, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
-		fig.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+		fig_d = plt.figure('detailed', figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
+		fig_d.suptitle(header, fontsize='medium', y=0.992)
+		fig_d.text(0.5, 0.975, subtitle, fontsize='small', horizontalalignment='center', verticalalignment='top', linespacing=1.6)
+		fig_d.text(0.075, 0.007, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
+		fig_d.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
 		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.91)
+
 
 	# Left channel
 	data = track['data']['float']
@@ -746,9 +747,52 @@ def render(track, analysis, header):
 
 	# Save
 	with Timer("Saving...", Steps.save, Steps) as t:
-		f = io.BytesIO()
-		plt.savefig(f, format='png', dpi=dpi, transparent=False)
-	return f
+		detailed = io.BytesIO()
+		plt.savefig(detailed, format='png', dpi=dpi, transparent=False)
+		plt.close(fig_d)
+
+	# Overview
+	fig_buf = plt.figure('buffer', figsize=(700.0/dpi, 150.0/dpi), facecolor='white', dpi=dpi)
+	w, h = fig_buf.canvas.get_width_height()
+	print w,h
+	fig_buf.patch.set_visible(False)
+	ax_buf = plt.gca()
+	img_buf = np.zeros((h,w,4), np.uint8)
+	img_buf[:,:,0:3] = 255
+	for i,ch in enumerate(data):
+		ax_buf.clear()
+		ax_buf.axis('off')
+		ax_buf.set_position([0, 0, 1, 1])
+		ax_buf.set_ylim(-1,1)
+		ax_buf.set_xticks([])
+		ax_buf.set_yticks([])
+		new_ch, new_n, new_r = pixelize(ch, ax_buf, which='both', oversample=2)
+		ax_buf.plot(range(len(new_ch)), new_ch, color=c_color[i])
+		ax_buf.set_xlim(0,len(new_ch))
+		fig_buf.canvas.draw()
+		img = np.frombuffer(fig_buf.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
+		print img
+		img_buf[:,:,-1] = np.maximum(img_buf[:,:,-1], img[:,:,-1])
+		img_buf[:,:,0:3] = np.minimum(img_buf[:,:,0:3], img[:,:,0:3])
+		print img_buf
+		plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
+
+	ax_buf.clear()
+	ax_buf.axis('off')
+	ax_buf.set_position([0, 0, 1, 1])
+	ax_buf.set_xticks([])
+	ax_buf.set_yticks([])
+	ax_buf.imshow(img_buf)
+	plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
+
+	fig_o = plt.figure('overview', figsize=(606.0/dpi, 100.0/dpi), facecolor='white', dpi=dpi)
+	plt.imshow(img_buf)
+
+	overview = io.BytesIO()
+	plt.savefig(overview, format='png', dpi=dpi, transparent=False)
+	plt.close(fig_o)
+
+	return detailed, overview
 
 
 def xpixels(ax):
@@ -1020,6 +1064,10 @@ def run(infile, outfile=None, fmt='png', destdir='', update=True, header=None, u
 				img.save(outfile, 'PNG', optimize=True)
 			elif fmt == 'jpg':
 				img.save(outfile, 'JPEG', quality=80, optimize=True)
+			img_o = Image.open(overview)
+			if fmt == 'png':
+				img_o = img_o.convert(mode='P', palette='ADAPTIVE', colors=256)
+				img_o.save('overview.png', 'PNG', optimize=True)
 	Steps.report()
 
 
