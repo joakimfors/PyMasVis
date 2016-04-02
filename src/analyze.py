@@ -42,7 +42,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.11.0"
+VERSION="0.11.1"
 
 DEBUG=False
 
@@ -766,7 +766,7 @@ def render(track, analysis, header):
 	ax_o.set_yticks([])
 	header_o = "%s  [%s, %d ch, %d bits, %d Hz, %d kbps]" % (header, track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)))
 	ax_o.set_title(header_o, fontsize='small', loc='left')
-	print ax_o.bbox.bounds
+	#print ax_o.bbox.bounds
 	w_buf = round(ax_o.bbox.bounds[2])
 	h_buf = round(ax_o.bbox.bounds[3])
 	info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
@@ -774,7 +774,7 @@ def render(track, analysis, header):
 
 	fig_buf = plt.figure('buffer', figsize=(w_buf/dpi, h_buf/dpi), facecolor='white', dpi=dpi)
 	w, h = fig_buf.canvas.get_width_height()
-	print w,h
+	#print w,h
 	fig_buf.patch.set_visible(False)
 	ax_buf = plt.gca()
 	img_buf = np.zeros((h,w,4), np.uint8)
@@ -845,7 +845,7 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
 			j = int(np.round(10**( i / float(nw) * a + b )) - 1)
 			k = int(np.round(10**( (i+1) / float(nw) * a + b )))
 		if i == nw - 1 and k != span[1]:
-			print 'tweak k'
+			log.debug('pixelize tweak k')
 			k = span[1]
 		r[i] = k
 		if which is 'max':
@@ -1030,10 +1030,9 @@ def file_formats():
 		if foo in formats: formats.remove(foo)
 	return formats
 
-def list_files(dir, exts, max=0, level=0):
-	pass
 
 overviews = {}
+
 
 def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
 	loader = None
@@ -1127,7 +1126,7 @@ if __name__ == "__main__":
 	log.addHandler(lh)
 	formats = file_formats()
 	candidates = []
-	print args.inputs
+	#print args.inputs
 	for f in args.inputs:
 		if f.startswith('spotify:'):
 			from spotidump import SpotiDump
@@ -1159,12 +1158,12 @@ if __name__ == "__main__":
 		run(infile, outfile, 'overview.png', args.format, args.destdir, update, header, args.username, args.password)
 	if update:
 		for overviewfile,images in overviews.iteritems():
-			print overviewfile, len(images)
+			#print overviewfile, len(images)
 			w,h = images[0].size
 			n = len(images)
 			out = Image.new('RGBA', (w, h*n))
 			for i,image in enumerate(images):
-				print image.size
+				#print image.size
 				out.paste(image, (0,h*i))
 			out = out.convert(mode='P', palette='ADAPTIVE', colors=256)
 			out.save(overviewfile, 'PNG', optimize=True)
