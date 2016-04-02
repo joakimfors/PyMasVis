@@ -365,8 +365,8 @@ def analyze(track):
 		stl_rel = stl_abs[stl_abs >= stl_int - 20.0]
 		stl_rel_sort = np.sort(stl_rel)
 		n_stl = stl_rel.size - 1
-		stl_low = stl_rel_sort[round(n_stl*0.1)]
-		stl_high = stl_rel_sort[round(n_stl*0.95)]
+		stl_low = stl_rel_sort[int(round(n_stl*0.1))]
+		stl_high = stl_rel_sort[int(round(n_stl*0.95))]
 		lra = stl_high - stl_low
 
 	# PLR
