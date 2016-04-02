@@ -42,7 +42,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="0.11.1"
+VERSION="0.12.0"
 
 DEBUG=False
 
@@ -611,11 +611,9 @@ def render(track, analysis, header):
 			[6   , 20  ], [-10, -20], 'k-',
 			basex=10
 		)
-		new_spec, new_n, new_r = pixelize(norm_spec[0], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-		semilogx(new_r/1000.0, new_spec, 'b-', basex=10)
-		if nc > 1:
-			new_spec, new_n, new_r = pixelize(norm_spec[1], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
-			semilogx(new_r/1000.0, new_spec, 'r-', basex=10)
+		for c in range(nc):
+			new_spec, new_n, new_r = pixelize(norm_spec[c], ax_norm, which='max', oversample=1, method='log10', span=(20,20000))
+			semilogx(new_r/1000.0, new_spec, color=c_color[c], linestyle='-', basex=10)
 		ylim(-90, -10)
 		xlim(0.02, 20)
 		ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
@@ -634,12 +632,9 @@ def render(track, analysis, header):
 	ap_crest = analysis['ap_crest']
 	with Timer("Drawing allpass...", Steps.draw_ap, Steps) as t:
 		ax_ap = subplot(gs[3,1])
-		semilogx(ap_freqs/1000.0, crest_db[0]*np.ones(len(ap_freqs)), 'b--', basex=10)
-		if nc > 1:
-			semilogx(ap_freqs/1000.0, crest_db[1]*np.ones(len(ap_freqs)), 'r--', basex=10)
-		semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[0], 'b-', basex=10)
-		if nc > 1:
-			semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[1], 'r-', basex=10)
+		for c in range(nc):
+			semilogx(ap_freqs/1000.0, crest_db[c]*np.ones(len(ap_freqs)), color=c_color[c], linestyle='--', basex=10)
+			semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[c], color=c_color[c], linestyle='-', basex=10)
 		ylim(0,30)
 		xlim(0.02, 20)
 		title("Allpassed crest factor", fontsize='small', loc='left')
@@ -652,24 +647,20 @@ def render(track, analysis, header):
 	# Histogram
 	hist = analysis['hist']
 	hist_bits = analysis['hist_bits']
+	hist_title_bits = []
 	with Timer("Drawing histogram...", Steps.draw_hist, Steps) as t:
 		ax_hist = subplot(gs[4,0])
-		new_hist, new_n, new_range = pixelize(hist[0], ax_hist, which='max', oversample=2)
-		new_hist[(new_hist == 1.0)] = 1.3
-		new_hist[(new_hist < 1.0)] = 1.0
-		semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'b-', basey=10, drawstyle='steps')
-		if nc > 1:
-			new_hist, new_n, new_range = pixelize(hist[1], ax_hist, which='max', oversample=2)
+		for c in range(nc):
+			new_hist, new_n, new_range = pixelize(hist[c], ax_hist, which='max', oversample=2)
 			new_hist[(new_hist == 1.0)] = 1.3
 			new_hist[(new_hist < 1.0)] = 1.0
-			semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, 'r-', basey=10, drawstyle='steps')
+			semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist, color=c_color[c], linestyle='-', basey=10, drawstyle='steps')
+			hist_title_bits.append('%0.1f' % hist_bits[c])
 		xlim(-1.1, 1.1)
 		ylim(1,50000)
 		xticks(np.arange(-1.0, 1.2, 0.2), (-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1))
 		yticks([10, 100, 1000], (10, 100, 1000))
-		hist_title = 'Histogram, "bits": %0.1f' % hist_bits[0]
-		if nc > 1:
-			hist_title += '/%0.1f' % hist_bits[1]
+		hist_title = 'Histogram, "bits": %s' % '/'.join(hist_title_bits)
 		title(hist_title, fontsize='small', loc='left')
 		ylabel('n', fontsize='small', rotation=0)
 		axis_defaults(ax_hist)
@@ -691,9 +682,8 @@ def render(track, analysis, header):
 		text(-48, -25, '20', fontsize='x-small', rotation=45, va='bottom', ha='left')
 		text(-48, -15, '30', fontsize='x-small', rotation=45, va='bottom', ha='left')
 		text(-48, -5, '40', fontsize='x-small', rotation=45, va='bottom', ha='left')
-		plot(rms_1s_dbfs[0], peak_1s_dbfs[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-		if nc > 1:
-			plot(rms_1s_dbfs[1], peak_1s_dbfs[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		for c in range(nc):
+			plot(rms_1s_dbfs[c], peak_1s_dbfs[c], linestyle='', marker='o', markerfacecolor='w', markeredgecolor=c_color[c], markeredgewidth=0.7)
 		xlim(-50, 0)
 		ylim(-50, 0)
 		title("Peak vs RMS level", fontsize='small', loc='left')
@@ -708,9 +698,8 @@ def render(track, analysis, header):
 	n_1s = analysis['n_1s']
 	with Timer("Drawing short term crest...", Steps.draw_stc, Steps) as t:
 		ax_1s = subplot(gs[5,:])
-		plot(np.arange(n_1s)+0.5, crest_1s_db[0], 'bo', markerfacecolor='w', markeredgecolor='b', markeredgewidth=0.7)
-		if nc > 1:
-			plot(np.arange(n_1s)+0.5, crest_1s_db[1], 'ro', markerfacecolor='w', markeredgecolor='r', markeredgewidth=0.7)
+		for c in range(nc):
+			plot(np.arange(n_1s)+0.5, crest_1s_db[c], linestyle='', marker='o', markerfacecolor='w', markeredgecolor=c_color[c], markeredgewidth=0.7)
 		ylim(0,30)
 		xlim(0,n_1s)
 		yticks([10, 20], (10,))
