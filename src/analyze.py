@@ -756,7 +756,23 @@ def render(track, analysis, header):
 		plt.close(fig_d)
 
 	# Overview
-	fig_buf = plt.figure('buffer', figsize=(700.0/dpi, 150.0/dpi), facecolor='white', dpi=dpi)
+	w_o = 606.0
+	h_o = 64.0
+	fig_o = plt.figure('overview', figsize=(w_o/dpi, h_o/dpi), facecolor='white', dpi=dpi)
+	ax_o = fig_o.add_subplot(111)
+	#ax_o.set_position([0.05, 0.05, 0.9, 0.5])
+	ax_o.set_position([12/w_o, 8/h_o, 464/w_o, 40/h_o])
+	ax_o.set_xticks([])
+	ax_o.set_yticks([])
+	header_o = "%s  [%s, %d ch, %d bits, %d Hz, %d kbps]" % (header, track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)))
+	ax_o.set_title(header_o, fontsize='small', loc='left')
+	print ax_o.bbox.bounds
+	w_buf = round(ax_o.bbox.bounds[2])
+	h_buf = round(ax_o.bbox.bounds[3])
+	info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
+	text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False) # 46, top
+
+	fig_buf = plt.figure('buffer', figsize=(w_buf/dpi, h_buf/dpi), facecolor='white', dpi=dpi)
 	w, h = fig_buf.canvas.get_width_height()
 	print w,h
 	fig_buf.patch.set_visible(False)
@@ -775,22 +791,24 @@ def render(track, analysis, header):
 		ax_buf.set_xlim(0,len(new_ch))
 		fig_buf.canvas.draw()
 		img = np.frombuffer(fig_buf.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
-		print img
-		img_buf[:,:,-1] = np.maximum(img_buf[:,:,-1], img[:,:,-1])
-		img_buf[:,:,0:3] = np.minimum(img_buf[:,:,0:3], img[:,:,0:3])
-		print img_buf
-		plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
-
-	ax_buf.clear()
-	ax_buf.axis('off')
-	ax_buf.set_position([0, 0, 1, 1])
-	ax_buf.set_xticks([])
-	ax_buf.set_yticks([])
-	ax_buf.imshow(img_buf)
-	plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
-
-	fig_o = plt.figure('overview', figsize=(606.0/dpi, 100.0/dpi), facecolor='white', dpi=dpi)
-	plt.imshow(img_buf)
+		#img_buf[:,:,0:3] = img[:,:,0:3] * (img[:,:,3:4] / 255.0) + img_buf[:,:,0:3] * ((255 - img[:,:,3:4]) / 255.0)
+		img_buf[:,:,0:3] = img[:,:,0:3] * (img_buf[:,:,0:3] / 255.0)
+		img_buf[:,:,-1] = np.maximum(img[:,:,-1], img_buf[:,:,-1])
+		#plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
+	#ax_buf.clear()
+	#ax_buf.axis('off')
+	#ax_buf.set_position([0, 0, 1, 1])
+	#ax_buf.set_xticks([])
+	#ax_buf.set_yticks([])
+	#ax_buf.imshow(img_buf)
+	#plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
+	#img_buf[:,:,0:3] = img[:,:,3:4]
+	img_buf[:,:,0:3] = (img_buf[:,:,3:4] / 255.0) * img_buf[:,:,0:3] + (255 - img_buf[:,:,3:4])
+	img_buf[:,:,-1] = 255
+	#Image.fromarray(img_buf).save('buffer.png')
+	plt.figure('overview')
+	plt.imshow(img_buf, aspect='auto', interpolation='none')
+	#print ax_o.bbox.bounds
 
 	overview = io.BytesIO()
 	plt.savefig(overview, format='png', dpi=dpi, transparent=False)
