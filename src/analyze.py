@@ -510,7 +510,7 @@ def render(track, analysis, header):
 	checksum = analysis['checksum']
 	lufs_to_lu = 23.0
 	with Timer("Drawing plot...", Steps.draw_plot, Steps) as t:
-		c_color = ['b', 'r', 'g', 'k', 'c', 'm']
+		c_color = ['b', 'r', 'g', 'y', 'c', 'm']
 		c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
 		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_total_db, dr, l_kg+lufs_to_lu, lra, plr)
 		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Sample rate: %d Hz,  Bitrate: %s kbps,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)), track['metadata']['source'])
