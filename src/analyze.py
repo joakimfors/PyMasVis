@@ -1088,10 +1088,16 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 				img.save(outfile, 'PNG', optimize=True)
 			elif fmt == 'jpg':
 				img.save(outfile, 'JPEG', quality=80, optimize=True)
-			img_o = Image.open(overview)
-			if fmt == 'png':
-				img_o = img_o.convert(mode='P', palette='ADAPTIVE', colors=256)
-				img_o.save('overview.png', 'PNG', optimize=True)
+			if overview:
+				img_o = Image.open(overview)
+				if overviewfile:
+					overviewindex = os.path.join(destdir, overviewfile)
+					if overviewindex not in overviews:
+						overviews[overviewindex] = []
+					overviews[overviewindex].append(img_o)
+				#if fmt == 'png':
+				#	img_o = img_o.convert(mode='P', palette='ADAPTIVE', colors=256)
+				#	img_o.save('overview.png', 'PNG', optimize=True)
 	Steps.report()
 
 
@@ -1150,4 +1156,16 @@ if __name__ == "__main__":
 		outfile = None
 		header = None
 		log.warning(infile)
-		run(infile, outfile, args.format, args.destdir, update, header, args.username, args.password)
+		run(infile, outfile, 'overview.png', args.format, args.destdir, update, header, args.username, args.password)
+	if update:
+		for overviewfile,images in overviews.iteritems():
+			print overviewfile, len(images)
+			w,h = images[0].size
+			n = len(images)
+			out = Image.new('RGBA', (w, h*n))
+			for i,image in enumerate(images):
+				print image.size
+				out.paste(image, (0,h*i))
+			out = out.convert(mode='P', palette='ADAPTIVE', colors=256)
+			out.save(overviewfile, 'PNG', optimize=True)
+
