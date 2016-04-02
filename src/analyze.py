@@ -289,6 +289,7 @@ def analyze(track):
 	# Peak / RMS
 	with Timer('Calculating peak and RMS...', Steps.calc_pr, Steps) as t:
 		data_rms = rms(data, 1)
+		data_total_rms = rms(data.reshape(1,-1), 1)
 		data_peak = np.abs(data).max(1)
 
 		# Peak dBFS
@@ -299,6 +300,7 @@ def analyze(track):
 
 		# Crest dB
 		crest_db = db(data_peak, data_rms)
+		crest_total_db = db(data_peak.max(), data_total_rms)
 
 	# Loudest
 	with Timer('Calculating loudest...', Steps.calc_loud, Steps) as t:
@@ -453,6 +455,7 @@ def analyze(track):
 	#
 	return {
 		'crest_db': crest_db,
+		'crest_total_db': crest_total_db,
 		'rms_dbfs': rms_dbfs,
 		'peak_dbfs': peak_dbfs,
 		'true_peak_dbtp': true_peak_dbtp,
@@ -499,6 +502,7 @@ def render(track, analysis, header):
 	nc = track['channels']
 	fs = track['samplerate']
 	crest_db = analysis['crest_db']
+	crest_total_db = analysis['crest_total_db']
 	dr = analysis['dr']
 	l_kg = analysis['l_kg']
 	lra = analysis['lra']
@@ -508,7 +512,7 @@ def render(track, analysis, header):
 	with Timer("Drawing plot...", Steps.draw_plot, Steps) as t:
 		c_color = ['b', 'r', 'g', 'k', 'c', 'm']
 		c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
-		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_db.mean(), dr, l_kg+lufs_to_lu, lra, plr)
+		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_total_db, dr, l_kg+lufs_to_lu, lra, plr)
 		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Sample rate: %d Hz,  Bitrate: %s kbps,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)), track['metadata']['source'])
 		subtitle_meta = []
 		if track['metadata']['album']:
