@@ -1033,18 +1033,22 @@ def file_formats():
 def list_files(dir, exts, max=0, level=0):
 	pass
 
+overviews = {}
 
-def run(infile, outfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
+def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
 	loader = None
 	loader_args = []
 	spotify = False
+	destdir = os.path.join(os.path.dirname(infile), destdir)
+	if destdir and not os.path.isdir(destdir):
+		log.debug("Creating destdir %s", destdir)
+		os.mkdir(destdir)
 	if os.path.isfile(infile):
 		log.debug("Selecting file loader")
 		loader = load_file
 		loader_args = [infile]
 		if not outfile:
-			basedir, filename = os.path.split(infile)
-			destdir = os.path.join(basedir, destdir)
+			filename = os.path.basename(infile)
 			filename = "%s-pymasvis.%s" % (filename, fmt)
 			outfile = os.path.join(destdir, filename)
 		if not update and os.path.isfile(outfile):
@@ -1053,9 +1057,6 @@ def run(infile, outfile=None, fmt='png', destdir='', update=True, header=None, u
 		if not os.path.splitext(outfile)[1][1:] in ['png', 'jpg']:
 			log.warning("Only png and jpg supported as output format")
 			return
-		if destdir and not os.path.isdir(destdir):
-			log.debug("Creating destdir %s", destdir)
-			os.mkdir(destdir)
 	elif infile.startswith('spotify:'):
 		log.debug("Selecting Spotify loader")
 		loader = load_spotify
@@ -1072,7 +1073,8 @@ def run(infile, outfile=None, fmt='png', destdir='', update=True, header=None, u
 	#	data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
 	#	log.debug(data_id)
 	if not outfile and spotify:
-		outfile = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
+		filename = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
+		outfile = os.path.join(destdir, filename)
 	if not header:
 		header = "%s" % (track['metadata']['name'])
 	with Timer('Running...', Steps.total, Steps) as t:
