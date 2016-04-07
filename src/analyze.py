@@ -131,11 +131,15 @@ def load_file(infile):
 		return 1
 	log.info("Probing file")
 	try:
-		output = subprocess.check_output(
+		ffprobe = subprocess.Popen(
 			[ffprobe_bin, '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
-			stderr=subprocess.STDOUT
+			stdout=subprocess.PIPE,
+			stderr=subprocess.PIPE,
+			stdin=subprocess.PIPE
 		)
+		output, error = ffprobe.communicate()
 		log.debug(output)
+		log.debug(error)
 		probe = json.loads(output)
 		if not probe['streams']:
 			log.warning("No audio stream found in %s", infile)
@@ -217,16 +221,14 @@ def load_file(infile):
 	log.info("Converting using ffmpeg")
 	command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
 	try:
-		if DEBUG:
-			ferr = None
-		else:
-			ferr = open(os.devnull, 'w')
-		p = subprocess.Popen(
+		ffmpeg = subprocess.Popen(
 			command,
+			stdin=subprocess.PIPE,
 			stdout=subprocess.PIPE,
-			stderr=ferr
+			stderr=subprocess.PIPE
 		)
-		outbuf = p.stdout.read()
+		outbuf, error = ffmpeg.communicate()
+		log.debug(error)
 	except CalledProcessError as e:
 		log.warning('Could not convert %s', infile)
 		return e.returncode
