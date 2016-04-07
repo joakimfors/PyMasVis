@@ -97,6 +97,18 @@ class Supervisor(object):
 	pass
 
 
+def find_bin(name):
+	paths = [d for d in sys.path if 'Contents/Resources' in d]
+	paths.extend(os.getenv('PATH').split(os.pathsep))
+	for ospath in paths:
+		for binext in ['', '.exe']:
+			binpath = os.path.join(ospath, name) + binext
+			if os.path.isfile(binpath):
+				log.debug('Found %s at %s', name, binpath)
+				return binpath
+	return None
+
+
 def load_file(infile):
 	src = 'file'
 	name = os.path.splitext(basename(infile))[0]
@@ -109,25 +121,18 @@ def load_file(infile):
 	track = None
 	bps = 1411000
 	bits = 16
-	ffmpeg_bin = None
-	paths = [d for d in sys.path if 'Contents/Resources' in d]
-	paths.extend(os.getenv('PATH').split(os.pathsep))
-	for ospath in paths:
-		for binext in ['', '.exe']:
-			binpath = os.path.join(ospath, 'ffmpeg') + binext
-			if os.path.isfile(binpath):
-				log.debug('Found ffmpeg at %s', binpath)
-				ffmpeg_bin = binpath
-				found = True
-				break
-		if ffmpeg_bin: break
+	ffprobe_bin = find_bin('ffprobe')
+	if not ffprobe_bin:
+		log.warning("ffprobe not found")
+		return 1
+	ffmpeg_bin = find_bin('ffmpeg')
 	if not ffmpeg_bin:
-		log.warning("Could not find ffmpeg")
+		log.warning("ffmpeg not found")
 		return 1
 	log.info("Probing file")
 	try:
 		output = subprocess.check_output(
-			['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
+			[ffprobe_bin, '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
 			stderr=subprocess.STDOUT
 		)
 		log.debug(output)
