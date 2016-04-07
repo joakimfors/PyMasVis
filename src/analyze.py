@@ -230,7 +230,22 @@ def load_file(infile):
 	except CalledProcessError as e:
 		log.warning('Could not convert %s', infile)
 		return e.returncode
-	raw_data = np.frombuffer(outbuf, dtype=conv['dtype']).reshape((nc, -1), order='F').copy(order='C')
+	raw_data = np.frombuffer(outbuf, dtype=conv['dtype'])
+	#if bits == 24:
+	# # => 24: {'format': 's24le', 'codec': 'pcm_s24le', 'dtype': np.dtype('u1')},
+	#	log.debug("tail %d", raw_data.shape[0]%(nc*3))
+	#	tail = gcd(4, nc*3)
+	#	print tail
+	#	usable = raw_data.shape[0] - tail
+	#	nf = int(usable/(nc*3))
+	#	print raw_data.shape, usable, nf, nc
+	#	print raw_data.flags, raw_data.dtype, type(raw_data)
+	#	raw_data = raw_data[:usable].view(np.dtype('<i4'))
+	#	raw_data = as_strided(raw_data, strides=(3,nc*3,), shape=(nc,nf))
+	#	raw_data = ((raw_data << 8) >> 8).copy(order='C')
+	#	print raw_data.flags, raw_data.dtype
+	#else:
+	raw_data = raw_data.reshape((nc, -1), order='F').copy(order='C')
 	log.debug(raw_data.shape)
 	nf = raw_data[0].shape[0]
 	sec = nf / float(fs)
@@ -267,6 +282,17 @@ def load_file(infile):
 			'bps': bps
 		}
 	}
+
+
+def gcd(a, b):
+	"""Return greatest common divisor using Euclid's Algorithm."""
+	while b:
+		a, b = b, a % b
+		return a
+
+def lcm(a, b):
+	"""Return lowest common multiple."""
+	return a * b // gcd(a, b)
 
 
 def load_spotify(link, username, password):
