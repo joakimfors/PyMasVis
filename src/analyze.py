@@ -46,15 +46,23 @@ VERSION="0.12.0"
 
 DEBUG=False
 
+log = logging.getLogger('pymasvis')
+lh = logging.StreamHandler(sys.stdout)
+lh.setFormatter(logging.Formatter("%(message)s"))
+log.addHandler(lh)
+log.setLevel(logging.WARNING)
+overviews = {}
+
+
 class Timer:
-	def __init__(self, description=False, tid=False, callback=False):
+	def __init__(self, description=None, tid=None, callback=None):
 		self.description = description
 		self.callback = callback
 		self.tid = tid
 
 	def __enter__(self):
 		if self.callback:
-			self.callback.start(self.tid, self.description)
+			self.callback('start', self.tid, desc=self.description)
 		elif self.description:
 			log.info(self.description)
 		self.start = time.time()
@@ -65,25 +73,32 @@ class Timer:
 		self.secs = self.end - self.start
 		self.msecs = self.secs * 1000
 		if self.callback:
-			self.callback.end(self.tid, self.secs)
+			self.callback('stop', self.tid, secs=self.secs)
 		else:
 			log.debug('%7.1f ms', self.msecs)
 
 
 class Steps:
-	steps = 23
-	total, calc_pr, calc_loud, calc_tp, calc_ebur128, calc_plr, calc_spec, calc_ap, calc_hist, calc_pvsr, calc_dr, calc_csum, draw_plot, draw_left, draw_right, draw_loud, draw_spec, draw_ap, draw_hist, draw_pvsr, draw_stc, draw_ebur128, save = range(steps)
+	steps = 24
+	total, calc_pr, calc_loud, calc_tp, calc_ebur128, calc_plr, calc_spec, calc_ap, calc_hist, calc_pvsr, calc_dr, calc_csum, draw_plot, draw_left, draw_right, draw_loud, draw_spec, draw_ap, draw_hist, draw_pvsr, draw_stc, draw_ebur128, draw_overview, save = range(steps)
 	times = [0]*steps
 	descs = ['']*steps
 
 	@classmethod
-	def start(cls, tid, desc=False):
+	def callback(cls, event, tid, desc=None, secs=None):
+		if event == 'start':
+			cls.start(tid, desc)
+		elif event == 'stop':
+			cls.stop(tid, secs)
+
+	@classmethod
+	def start(cls, tid, desc=None):
 		if desc:
 			cls.descs[tid] = desc
 			log.info(desc)
 
 	@classmethod
-	def end(cls, tid, secs):
+	def stop(cls, tid, secs):
 		log.debug('%7.1f ms', secs*1000)
 		cls.times[tid] = secs
 
@@ -109,7 +124,13 @@ def find_bin(name):
 	return None
 
 
-def load_file(infile):
+def load_file(infile, inbuffer=None):
+	convs = {
+		8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
+		16: {'format': 's16le', 'codec': 'pcm_s16le', 'dtype': np.dtype('<i2')},
+		24: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')},
+		32: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')}
+	}
 	src = 'file'
 	name = os.path.splitext(basename(infile))[0]
 	ext = os.path.splitext(infile)[1][1:].strip().lower()
@@ -130,96 +151,78 @@ def load_file(infile):
 		log.warning("ffmpeg not found")
 		return 1
 	log.info("Probing file")
+	_infile = infile
+	if inbuffer:
+		_infile = '-'
 	try:
 		ffprobe = subprocess.Popen(
-			[ffprobe_bin, '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', infile],
+			[ffprobe_bin, '-print_format', 'json', '-show_format', '-show_streams', '-select_streams', 'a', _infile],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,
 			stdin=subprocess.PIPE
 		)
-		output, error = ffprobe.communicate()
+		output, error = ffprobe.communicate(inbuffer)
 		log.debug(output)
-		log.debug(error)
-		probe = json.loads(output)
-		if not probe['streams']:
-			log.warning("No audio stream found in %s", infile)
-			return 2
-		container = probe['format']
-		stream = probe['streams'][0]
-		if 'tags' in container:
-			tags = {k.lower():v for k,v in container['tags'].items()}
-		else:
-			tags = {}
-
-		if 'format_name' in container:
-			fmt = container['format_name']
-		if 'bit_rate' in container:
-			bps = int(container['bit_rate'])
-		if 'bit_rate' in stream:
-			bps = int(stream['bit_rate'])
-		if 'duration_ts' in stream:
-			nf = int(stream['duration_ts'])
-		if 'sample_rate' in stream:
-			fs = int(stream['sample_rate'])
-		if 'channels' in stream:
-			nc = stream['channels']
-		if 'bits_per_raw_sample' in stream:
-			bits = int(stream['bits_per_raw_sample'])
-		if 'bits_per_sample' in stream and int(stream['bits_per_sample']) > 0:
-			bits = int(stream['bits_per_sample'])
-		if 'duration' in stream:
-			sec = float(stream['duration'])
-		if 'codec_name' in stream:
-			enc = stream['codec_name']
-			if 'pcm_' == enc[0:4]:
-				enc = fmt.split(',')[0]
-
-		if 'artist' in tags:
-			artist = tags['artist']
-		if 'title' in tags:
-			title = tags['title']
-		if 'album' in tags:
-			album = tags['album']
-		if 'track' in tags:
-			track = int(tags['track'].split('/')[0])
-		if 'date' in tags:
-			date = tags['date']
-
-		log.debug({
-			'frames': nf,
-			'samplerate': fs,
-			'channels': nc,
-			'bitdepth': bits,
-			'duration': sec,
-			'format': fmt,
-			'metadata': {
-				'source': src,
-				'filename': basename(infile),
-				'extension': ext,
-				'encoding': enc,
-				'name': name,
-				'artist': artist,
-				'title': title,
-				'album': album,
-				'track': track,
-				'date': date,
-				'bps': bps
-			}
-		})
-
-		convs = {
-			8: {'format': 's8', 'codec': 'pcm_s8', 'dtype': np.dtype('i1')},
-			16: {'format': 's16le', 'codec': 'pcm_s16le', 'dtype': np.dtype('<i2')},
-			24: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')},
-			32: {'format': 's32le', 'codec': 'pcm_s32le', 'dtype': np.dtype('<i4')}
-		}
-
-		conv = convs[bits]
 	except CalledProcessError as e:
-		log.warning('Could not probe %s', infile)
+		log.warning('Could not probe %s', source)
 		return e.returncode
+	if ffprobe.returncode > 0:
+		log.warning("Failed to probe file %s", infile)
+		log.debug(error)
+		return ffprobe.returncode
+	probe = json.loads(output)
+	if 'streams' not in probe:
+		log.warning("No streams found in %s", infile)
+		return 2
+	if not probe['streams']:
+		log.warning("No audio stream found in %s", infile)
+		return 2
+	container = probe['format']
+	stream = probe['streams'][0]
+	if 'tags' in container:
+		tags = {k.lower():v for k,v in container['tags'].items()}
+	else:
+		tags = {}
+
+	if 'format_name' in container:
+		fmts = container['format_name'].split(',')
+		if ext in fmts:
+			fmt = ext
+		else:
+			fmt = fmts[0]
+	if 'bit_rate' in container:
+		bps = int(container['bit_rate'])
+	if 'bit_rate' in stream:
+		bps = int(stream['bit_rate'])
+	if 'duration_ts' in stream:
+		nf = int(stream['duration_ts'])
+	if 'sample_rate' in stream:
+		fs = int(stream['sample_rate'])
+	if 'channels' in stream:
+		nc = stream['channels']
+	if 'bits_per_raw_sample' in stream:
+		bits = int(stream['bits_per_raw_sample'])
+	if 'bits_per_sample' in stream and int(stream['bits_per_sample']) > 0:
+		bits = int(stream['bits_per_sample'])
+	if 'duration' in stream:
+		sec = float(stream['duration'])
+	if 'codec_name' in stream:
+		enc = stream['codec_name']
+		if 'pcm_' == enc[0:4]:
+			enc = fmt
+	if 'artist' in tags:
+		artist = tags['artist']
+	if 'title' in tags:
+		title = tags['title']
+	if 'album' in tags:
+		album = tags['album']
+	if 'track' in tags:
+		track = int(tags['track'].split('/')[0])
+	if 'date' in tags:
+		date = tags['date']
+	conv = convs[bits]
 	log.info("Converting using ffmpeg")
-	command = [ffmpeg_bin, '-y', '-i', infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
+	command = [ffmpeg_bin, '-y', '-i', _infile, '-vn', '-f', conv['format'], '-acodec', conv['codec'], '-flags', 'bitexact', '-']
 	try:
 		ffmpeg = subprocess.Popen(
 			command,
@@ -227,7 +230,7 @@ def load_file(infile):
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE
 		)
-		outbuf, error = ffmpeg.communicate()
+		outbuf, error = ffmpeg.communicate(inbuffer)
 		log.debug(error)
 	except CalledProcessError as e:
 		log.warning('Could not convert %s', infile)
@@ -259,7 +262,7 @@ def load_file(infile):
 		fmt = ext
 	if artist and title:
 		name = '%s - %s' % (artist, title)
-	return {
+	output = {
 		'data': {
 			'fixed': raw_data,
 			'float': data
@@ -284,6 +287,7 @@ def load_file(infile):
 			'bps': bps
 		}
 	}
+	return output
 
 
 def gcd(a, b):
@@ -303,7 +307,7 @@ def load_spotify(link, username, password):
 	return track
 
 
-def analyze(track):
+def analyze(track, callback=None):
 	data = track['data']['float']
 	raw_data = track['data']['fixed']
 	nf = track['frames']
@@ -320,7 +324,7 @@ def analyze(track):
 	log.debug("\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tencoding: %s\n\tbitrate: %s", fs, nc, nf, bits, enc, bps)
 
 	# Peak / RMS
-	with Timer('Calculating peak and RMS...', Steps.calc_pr, Steps) as t:
+	with Timer('Calculating peak and RMS...', Steps.calc_pr, callback) as t:
 		data_rms = rms(data, 1)
 		data_total_rms = rms(data.reshape(1,-1), 1)
 		data_peak = np.abs(data).max(1)
@@ -336,7 +340,7 @@ def analyze(track):
 		crest_total_db = db(data_peak.max(), data_total_rms)
 
 	# Loudest
-	with Timer('Calculating loudest...', Steps.calc_loud, Steps) as t:
+	with Timer('Calculating loudest...', Steps.calc_loud, callback) as t:
 		window = int(fs / 50)
 		peak = data_peak.max()
 		sn_max = 0
@@ -366,7 +370,7 @@ def analyze(track):
 			w_max = (nf - fs/10, nf)
 
 	# True peaks
-	with Timer('Calculating true peaks...', Steps.calc_tp, Steps) as t:
+	with Timer('Calculating true peaks...', Steps.calc_tp, callback) as t:
 		fir = fir_coeffs()
 		fir_phases, fir_size = fir.shape
 		d_size = data.itemsize
@@ -385,7 +389,7 @@ def analyze(track):
 		true_peak_dbtp = db(true_peak, 1.0)
 
 	# EBU R.128
-	with Timer('Calculating EBU R 128...', Steps.calc_ebur128, Steps) as t:
+	with Timer('Calculating EBU R 128...', Steps.calc_ebur128, callback) as t:
 		l_kg = itu1770(data, fs, gated=True)
 		steps = int((nf-3*fs)/fs)+1
 		stl = np.zeros(steps)
@@ -403,7 +407,7 @@ def analyze(track):
 		lra = stl_high - stl_low
 
 	# PLR
-	with Timer('Calculatin PLR...', Steps.calc_plr, Steps) as t:
+	with Timer('Calculatin PLR...', Steps.calc_plr, callback) as t:
 		plr_lu = true_peak_dbtp.max() - l_kg
 		#print plr_lu
 		#print sttp
@@ -412,7 +416,7 @@ def analyze(track):
 		#print stl
 
 	# Spectrum
-	with Timer('Calculating spectrum...', Steps.calc_spec, Steps) as t:
+	with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
 		frames = nf/fs
 		wfunc = np.blackman(fs)
 		norm_spec = np.zeros((nc,fs))
@@ -422,7 +426,7 @@ def analyze(track):
 			norm_spec[c] = 20*np.log10( (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]) )
 
 	# Allpass
-	with Timer('Calculating allpass...', Steps.calc_ap, Steps) as t:
+	with Timer('Calculating allpass...', Steps.calc_ap, callback) as t:
 		ap_freqs = np.array([20, 60, 200, 600, 2000, 6000, 20000])
 		ap_crest = np.zeros((len(ap_freqs),nc))
 		ap_rms = np.zeros((len(ap_freqs),nc))
@@ -436,7 +440,7 @@ def analyze(track):
 			ap_crest[i] = db(ap_peak[i], ap_rms[i])
 
 	# Histogram
-	with Timer('Calculating histogram...', Steps.calc_hist, Steps) as t:
+	with Timer('Calculating histogram...', Steps.calc_hist, callback) as t:
 		hbits = bits
 		if bits > 16:
 			hbits = 18
@@ -449,7 +453,7 @@ def analyze(track):
 			hist_bits *= bits / float(hbits) # fake but counting 2**24 bins take way too long to be worth it
 
 	# Peak vs RMS
-	with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, Steps) as t:
+	with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback) as t:
 		n_1s = nf/fs
 		peak_1s_dbfs = np.zeros((nc, n_1s))
 		rms_1s_dbfs = np.zeros((nc, n_1s))
@@ -463,7 +467,7 @@ def analyze(track):
 				crest_1s_db[c][i] = db(a, b)
 
 	# DR
-	with Timer('Calculating DR...', Steps.calc_dr, Steps) as t:
+	with Timer('Calculating DR...', Steps.calc_dr, callback) as t:
 		dr_blocks = int(nf/(3.0*fs))
 		dr_nf = dr_blocks*3*fs
 		dr_tail = nf - dr_nf
@@ -482,7 +486,7 @@ def analyze(track):
 		dr_ch = -20*np.log10( np.sqrt((dr_rms[:,-dr_20:]**2).mean(1, keepdims=True)) / dr_peak[:,[-2]] )
 		dr = int(round(dr_ch.mean()))
 
-	with Timer('Calculating checksum...', Steps.calc_csum, Steps) as t:
+	with Timer('Calculating checksum...', Steps.calc_csum, callback) as t:
 		checksum = (raw_data.astype('uint32')**2).sum()
 
 	#
@@ -528,7 +532,7 @@ class MaxNLocatorMod(MaxNLocator):
 		return ticks
 
 
-def render(track, analysis, header):
+def render(track, analysis, header, render_overview=True, callback=None):
 	#
 	# Plot
 	#
@@ -542,7 +546,7 @@ def render(track, analysis, header):
 	plr = analysis['plr_lu']
 	checksum = analysis['checksum']
 	lufs_to_lu = 23.0
-	with Timer("Drawing plot...", Steps.draw_plot, Steps) as t:
+	with Timer("Drawing plot...", Steps.draw_plot, callback) as t:
 		c_color = ['b', 'r', 'g', 'y', 'c', 'm']
 		c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
 		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_total_db, dr, l_kg+lufs_to_lu, lra, plr)
@@ -574,7 +578,7 @@ def render(track, analysis, header):
 	true_peak_dbtp = analysis['true_peak_dbtp']
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
-	with Timer("Drawing left channel...", Steps.draw_left, Steps) as t:
+	with Timer("Drawing left channel...", Steps.draw_left, callback) as t:
 		ax_lch = subplot(gs[0,:])
 		new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
 		new_fs = new_nf/sec
@@ -590,7 +594,7 @@ def render(track, analysis, header):
 
 	if nc > 1:
 		# Right channel
-		with Timer("Drawing right channel...", Steps.draw_right, Steps) as t:
+		with Timer("Drawing right channel...", Steps.draw_right, callback) as t:
 			ax_rch = subplot(gs[1,:], sharex=ax_lch)
 			new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
 			new_fs = new_nf/sec
@@ -611,7 +615,7 @@ def render(track, analysis, header):
 	# Loudest
 	f_max = analysis['f_max']
 	nf_max = analysis['nf_max']
-	with Timer("Drawing loudest...", Steps.draw_loud, Steps) as t:
+	with Timer("Drawing loudest...", Steps.draw_loud, callback) as t:
 		ax_max = subplot(gs[2,:])
 		plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 		ylim(-1.0, 1.0)
@@ -626,7 +630,7 @@ def render(track, analysis, header):
 	# Spectrum
 	norm_spec = analysis['norm_spec']
 	frames = analysis['frames']
-	with Timer("Drawing spectrum...", Steps.draw_spec, Steps) as t:
+	with Timer("Drawing spectrum...", Steps.draw_spec, callback) as t:
 		ax_norm = subplot(gs[3,0])
 		semilogx(
 			[0.02, 0.06], [-80, -90], 'k-',
@@ -663,7 +667,7 @@ def render(track, analysis, header):
 	# Allpass
 	ap_freqs = analysis['ap_freqs']
 	ap_crest = analysis['ap_crest']
-	with Timer("Drawing allpass...", Steps.draw_ap, Steps) as t:
+	with Timer("Drawing allpass...", Steps.draw_ap, callback) as t:
 		ax_ap = subplot(gs[3,1])
 		for c in range(nc):
 			semilogx(ap_freqs/1000.0, crest_db[c]*np.ones(len(ap_freqs)), color=c_color[c], linestyle='--', basex=10)
@@ -681,7 +685,7 @@ def render(track, analysis, header):
 	hist = analysis['hist']
 	hist_bits = analysis['hist_bits']
 	hist_title_bits = []
-	with Timer("Drawing histogram...", Steps.draw_hist, Steps) as t:
+	with Timer("Drawing histogram...", Steps.draw_hist, callback) as t:
 		ax_hist = subplot(gs[4,0])
 		for c in range(nc):
 			new_hist, new_n, new_range = pixelize(hist[c], ax_hist, which='max', oversample=2)
@@ -701,7 +705,7 @@ def render(track, analysis, header):
 	# Peak vs RMS
 	rms_1s_dbfs = analysis['rms_1s_dbfs']
 	peak_1s_dbfs = analysis['peak_1s_dbfs']
-	with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, Steps) as t:
+	with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, callback) as t:
 		ax_pr = subplot(gs[4,1])
 		plot(
 			[-50,    0], [-50, 0], 'k-',
@@ -729,7 +733,7 @@ def render(track, analysis, header):
 	# Shortterm crest
 	crest_1s_db = analysis['crest_1s_db']
 	n_1s = analysis['n_1s']
-	with Timer("Drawing short term crest...", Steps.draw_stc, Steps) as t:
+	with Timer("Drawing short term crest...", Steps.draw_stc, callback) as t:
 		ax_1s = subplot(gs[5,:])
 		for c in range(nc):
 			plot(np.arange(n_1s)+0.5, crest_1s_db[c], linestyle='', marker='o', markerfacecolor='w', markeredgecolor=c_color[c], markeredgewidth=0.7)
@@ -747,7 +751,7 @@ def render(track, analysis, header):
 	# EBU R 128
 	stl = analysis['stl']
 	stplr = analysis['stplr_lu']
-	with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, Steps) as t:
+	with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, callback) as t:
 		ax_ebur128 = subplot(gs[6,:])
 		plot(np.arange(stl.size)+1.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
 		ylim(-18,18)
@@ -771,70 +775,75 @@ def render(track, analysis, header):
 		axis_defaults(ax_ebur128_stplr)
 		ax_ebur128_stplr.tick_params(axis='y', which='major', labelsize='xx-small')
 
+	# Overview
+	with Timer("Drawing overview...", Steps.draw_overview, callback):
+		if render_overview:
+			w_o = 606.0
+			h_o = 64.0
+			fig_o = plt.figure('overview', figsize=(w_o/dpi, h_o/dpi), facecolor='white', dpi=dpi)
+			ax_o = fig_o.add_subplot(111)
+			#ax_o.set_position([0.05, 0.05, 0.9, 0.5])
+			ax_o.set_position([12/w_o, 8/h_o, 464/w_o, 40/h_o])
+			ax_o.set_xticks([])
+			ax_o.set_yticks([])
+			header_o = "%s  [%s, %d ch, %d bits, %d Hz, %d kbps]" % (header, track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)))
+			ax_o.set_title(header_o, fontsize='small', loc='left')
+			#print ax_o.bbox.bounds
+			w_buf = round(ax_o.bbox.bounds[2])
+			h_buf = round(ax_o.bbox.bounds[3])
+			info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
+			text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False) # 46, top
+
+			fig_buf = plt.figure('buffer', figsize=(w_buf/dpi, h_buf/dpi), facecolor='white', dpi=dpi)
+			w, h = fig_buf.canvas.get_width_height()
+			#print w,h
+			fig_buf.patch.set_visible(False)
+			ax_buf = plt.gca()
+			img_buf = np.zeros((h,w,4), np.uint8)
+			img_buf[:,:,0:3] = 255
+			for i,ch in enumerate(data):
+				ax_buf.clear()
+				ax_buf.axis('off')
+				ax_buf.set_position([0, 0, 1, 1])
+				ax_buf.set_ylim(-1,1)
+				ax_buf.set_xticks([])
+				ax_buf.set_yticks([])
+				new_ch, new_n, new_r = pixelize(ch, ax_buf, which='both', oversample=2)
+				ax_buf.plot(range(len(new_ch)), new_ch, color=c_color[i])
+				ax_buf.set_xlim(0,len(new_ch))
+				fig_buf.canvas.draw()
+				img = np.frombuffer(fig_buf.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
+				#img_buf[:,:,0:3] = img[:,:,0:3] * (img[:,:,3:4] / 255.0) + img_buf[:,:,0:3] * ((255 - img[:,:,3:4]) / 255.0)
+				img_buf[:,:,0:3] = img[:,:,0:3] * (img_buf[:,:,0:3] / 255.0)
+				img_buf[:,:,-1] = np.maximum(img[:,:,-1], img_buf[:,:,-1])
+				#plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
+			#ax_buf.clear()
+			#ax_buf.axis('off')
+			#ax_buf.set_position([0, 0, 1, 1])
+			#ax_buf.set_xticks([])
+			#ax_buf.set_yticks([])
+			#ax_buf.imshow(img_buf)
+			#plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
+			#img_buf[:,:,0:3] = img[:,:,3:4]
+			img_buf[:,:,0:3] = (img_buf[:,:,3:4] / 255.0) * img_buf[:,:,0:3] + (255 - img_buf[:,:,3:4])
+			img_buf[:,:,-1] = 255
+			#Image.fromarray(img_buf).save('buffer.png')
+			plt.figure('overview')
+			plt.imshow(img_buf, aspect='auto', interpolation='none')
+			#print ax_o.bbox.bounds
+
+			overview = io.BytesIO()
+			plt.savefig(overview, format='png', dpi=dpi, transparent=False)
+			plt.close(fig_o)
+		else:
+			overview = None
+
 	# Save
-	with Timer("Saving...", Steps.save, Steps) as t:
+	with Timer("Saving...", Steps.save, callback) as t:
+		plt.figure('detailed')
 		detailed = io.BytesIO()
 		plt.savefig(detailed, format='png', dpi=dpi, transparent=False)
 		plt.close(fig_d)
-
-	# Overview
-	w_o = 606.0
-	h_o = 64.0
-	fig_o = plt.figure('overview', figsize=(w_o/dpi, h_o/dpi), facecolor='white', dpi=dpi)
-	ax_o = fig_o.add_subplot(111)
-	#ax_o.set_position([0.05, 0.05, 0.9, 0.5])
-	ax_o.set_position([12/w_o, 8/h_o, 464/w_o, 40/h_o])
-	ax_o.set_xticks([])
-	ax_o.set_yticks([])
-	header_o = "%s  [%s, %d ch, %d bits, %d Hz, %d kbps]" % (header, track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)))
-	ax_o.set_title(header_o, fontsize='small', loc='left')
-	#print ax_o.bbox.bounds
-	w_buf = round(ax_o.bbox.bounds[2])
-	h_buf = round(ax_o.bbox.bounds[3])
-	info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
-	text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False) # 46, top
-
-	fig_buf = plt.figure('buffer', figsize=(w_buf/dpi, h_buf/dpi), facecolor='white', dpi=dpi)
-	w, h = fig_buf.canvas.get_width_height()
-	#print w,h
-	fig_buf.patch.set_visible(False)
-	ax_buf = plt.gca()
-	img_buf = np.zeros((h,w,4), np.uint8)
-	img_buf[:,:,0:3] = 255
-	for i,ch in enumerate(data):
-		ax_buf.clear()
-		ax_buf.axis('off')
-		ax_buf.set_position([0, 0, 1, 1])
-		ax_buf.set_ylim(-1,1)
-		ax_buf.set_xticks([])
-		ax_buf.set_yticks([])
-		new_ch, new_n, new_r = pixelize(ch, ax_buf, which='both', oversample=2)
-		ax_buf.plot(range(len(new_ch)), new_ch, color=c_color[i])
-		ax_buf.set_xlim(0,len(new_ch))
-		fig_buf.canvas.draw()
-		img = np.frombuffer(fig_buf.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
-		#img_buf[:,:,0:3] = img[:,:,0:3] * (img[:,:,3:4] / 255.0) + img_buf[:,:,0:3] * ((255 - img[:,:,3:4]) / 255.0)
-		img_buf[:,:,0:3] = img[:,:,0:3] * (img_buf[:,:,0:3] / 255.0)
-		img_buf[:,:,-1] = np.maximum(img[:,:,-1], img_buf[:,:,-1])
-		#plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
-	#ax_buf.clear()
-	#ax_buf.axis('off')
-	#ax_buf.set_position([0, 0, 1, 1])
-	#ax_buf.set_xticks([])
-	#ax_buf.set_yticks([])
-	#ax_buf.imshow(img_buf)
-	#plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
-	#img_buf[:,:,0:3] = img[:,:,3:4]
-	img_buf[:,:,0:3] = (img_buf[:,:,3:4] / 255.0) * img_buf[:,:,0:3] + (255 - img_buf[:,:,3:4])
-	img_buf[:,:,-1] = 255
-	#Image.fromarray(img_buf).save('buffer.png')
-	plt.figure('overview')
-	plt.imshow(img_buf, aspect='auto', interpolation='none')
-	#print ax_o.bbox.bounds
-
-	overview = io.BytesIO()
-	plt.savefig(overview, format='png', dpi=dpi, transparent=False)
-	plt.close(fig_o)
 
 	return detailed, overview
 
@@ -1053,9 +1062,6 @@ def file_formats():
 	return formats
 
 
-overviews = {}
-
-
 def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
 	loader = None
 	loader_args = []
@@ -1098,11 +1104,11 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 		outfile = os.path.join(destdir, filename)
 	if not header:
 		header = "%s" % (track['metadata']['name'])
-	with Timer('Running...', Steps.total, Steps) as t:
+	with Timer('Running...', Steps.total, Steps.callback) as t:
 		with Timer('Analyzing...') as ta:
-			analysis = analyze(track)
+			analysis = analyze(track, callback=Steps.callback)
 		with Timer('Rendering...') as tr:
-			detailed, overview = render(track, analysis, header)
+			detailed, overview = render(track, analysis, header, callback=Steps.callback)
 			img = Image.open(detailed)
 			if fmt == 'png':
 				img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
@@ -1136,16 +1142,11 @@ if __name__ == "__main__":
 	parser.add_argument('--format', default='png', type=str, choices=['png', 'jpg'], help="selects output format, default: png")
 	parser.add_argument('inputs', metavar='input', type=str, nargs='+', help='a file, directory or Spotify URI to analyze')
 	args = parser.parse_args()
-	log = logging.getLogger('pymasvis')
-	log.setLevel(logging.WARNING)
 	if args.verbose:
 		log.setLevel(logging.INFO)
 	if args.debug:
 		DEBUG = True
 		log.setLevel(logging.DEBUG)
-	lh = logging.StreamHandler()
-	lh.setFormatter(logging.Formatter("%(message)s"))
-	log.addHandler(lh)
 	formats = file_formats()
 	candidates = []
 	#print args.inputs
