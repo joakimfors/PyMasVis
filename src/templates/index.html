@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <title>PyMasVis</title>
+  <script src="static/jquery-2.2.3.min.js" type="text/javascript" charset="utf-8"></script>
+  <script src="static/socket.io.js" type="text/javascript" charset="utf-8"></script>
+  <script type="text/javascript">
+    var socket = io('http://127.0.0.1:5000');
+    socket.on('connect', function(){
+      console.log('connect');
+      socket.emit('join', {room: "{{session['uid']}}"})
+    });
+    socket.on('event', function(data){
+      console.log(data);
+    });
+    socket.on('disconnect', function(){
+      console.log('disconnect');
+    });
+  </script>
+</head>
+<body>
+  Hej!
+
+  {{count}}
+
+  <form action="analyze" method="post" accept-charset="utf-8" enctype="multipart/form-data">
+
+    <label for="foo">Ze file</label><input type="file" name="file" value="" id="foo">
+    <p><input type="submit" value="Analyze &rarr;"></p>
+  </form>
+
+</body>
+</html>
