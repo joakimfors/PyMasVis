@@ -59,7 +59,6 @@ def test():
 
 @app.route('/')
 def index():
-	app.logger.error('Hejhej!')
 	return render_template('index.html', debug=app.debug)
 
 
