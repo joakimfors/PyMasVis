@@ -1,33 +1,13 @@
-<!doctype html>
-<html>
-<head>
-  <title>PyMasVis</title>
+{% extends "base.html" %}
+{% block title %}PyMasVis{% endblock %}
+{% block head %}
+  {{ super() }}
   <style type="text/css" media="screen">
-    body {
-      font-family: sans-serif;
-      background: rgb(252,252,252);
-    }
-    div#wrapper {
-      max-width: 600pt;
-      margin: 4em auto;
-    }
-    header h1 {
-      color: rgb(242,242,242);
-      text-align: center;
-      font-weight: bold;
-      font-size: 5em;
-      letter-spacing: -0.2em;
-    }
-    p.flash {
-      padding: 0.5em;
-      border: 1px solid rgb(255,230,230);
-      background: rgb(255,252,252);
-      color: rgb(128,52,52);
-    }
     main form {
       text-align: center;
     }
     div#status {
+      min-height: 32em;
       margin: 2em 5em;
       font-size: 0.8em;
     }
@@ -43,9 +23,11 @@
     socket.on('progress', function(data) {
       {% if debug %}console.log(data);{% endif %}
       switch (data.status) {
-        //case 'start': $('#analyze :input').prop('disabled', true); $('#status').empty(); break;
-        case 'inprogress': $('<div>'+data.message+'</div>').hide().fadeIn().appendTo('#status'); break;
-        //case 'finished': $('#analyze :input').prop('disabled', false); $('#status div').fadeOut(); break;
+        case 'inprogress':
+          var d = document.createElement('div');
+          d.innerText = data.message;
+          $(d).hide().fadeIn().appendTo('#status');
+          break;
       }
     });
     socket.on('disconnect', function() {
@@ -53,17 +35,14 @@
     });
     $(document).ready(function() {
       $('#analyze').submit(function(event) {
-        //var data = new FormData();
-        //data.append('file', $('#file')[0].files[0]);
         var data = new FormData(document.getElementById('analyze'));
         $.ajax({
           xhr: function() {
             var xhr = new window.XMLHttpRequest();
             xhr.addEventListener("progress", function (evt) {
-              console.log(evt.lengthComputable); // false
               if (evt.lengthComputable) {
                 var percentComplete = evt.loaded / evt.total;
-                console.log(Math.round(percentComplete * 100) + "%");
+                {% if debug %}console.log(Math.round(percentComplete * 100) + "%");{% endif %}
               }
             }, false);
             return xhr;
@@ -74,66 +53,51 @@
           contentType: false,
           processData: false,
           data: data,
-          xhrFields: {
-            responseType: 'blob'
-          },
-          dataType: 'binary'
+          dataType: 'json'
         }).done(function(data, text, xhr) {
-          console.log('DONE AJAXING!');
-          console.log(text);
-          console.log(data.slice(0,10));
-          console.log(data);
-          console.log(xhr);
-          console.log(xhr.getAllResponseHeaders());
-          console.log(xhr.getResponseHeader('Content-Disposition'));
-          var filename = xhr.getResponseHeader('Content-Disposition').split('=')[1]
-          //var image = new File([data], filename, {type: data.type});
-          image = data;
-          console.log(image);
           var a = document.createElement('a');
           document.body.appendChild(a);
           a.style = 'display: none';
-          url = window.URL.createObjectURL(image);
-          console.log(url);
-          a.href = url
-          a.download = filename
+          a.href = data['imgurl'];
           a.click();
-          window.URL.revokeObjectURL(url);
+          a.parentNode.removeChild(a);
         }).fail(function(xhr, text, error) {
+          {% if debug %}
           console.log('Error');
           console.log(xhr);
-          console.log(text)
+          console.log(text);
+          console.log(error);
+          {% endif %}
+          var flash = document.getElementById('flash');
+          xhr.responseJSON.flash.forEach(function(item) {
+            var p = document.createElement('p');
+            p.innerText = item;
+            $(p).hide().delay(400).fadeIn().appendTo(flash);
+          });
+          var p = document.createElement('p');
+          p.innerText = xhr.responseJSON.error;
+          $(p).hide().delay(400).fadeIn().appendTo(flash);
         }).always(function(data, text, xhr) {
-          console.log('Aaaaand theeeeeeeen?');
           $('#analyze :input').prop('disabled', false);
           $('#status div').fadeOut();
         });
         event.preventDefault();
         $('#analyze :input').prop('disabled', true);
+        $('#flash p').slideUp(400, function() {
+          $(this).remove();
+        });
         $('#status').empty();
-        $('<div>Uploading...</div>').hide().fadeIn().appendTo('#status');
+        var d = document.createElement('div');
+        d.innerText = 'Uploading...';
+        $(d).hide().fadeIn().appendTo('#status');
       });
     });
   </script>
-</head>
-<body>
-<div id="wrapper">
-  <header role="banner">
-    <h1>PyMasVis</h1>
-    {% for msg in get_flashed_messages() %}
-      <p class="flash">{{msg}}</p>
-    {% endfor %}
-  </header>
-
-  <main role="main">
+{% endblock %}
+{% block main %}
   <form id="analyze" action="analyze" method="post" accept-charset="utf-8" enctype="multipart/form-data">
     <!--<label for="foo">Ze file</label> --><input type="file" name="file" value="" id="file"> <input type="submit" value="Analyze &rarr;">
   </form>
   <div id="status"></div>
   </main>
-
-  <footer role="contentinfo">
-  </footer>
-</div>
-</body>
-</html>
+{% endblock %}

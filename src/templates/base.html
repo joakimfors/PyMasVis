@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  {% block head %}
+  <title>{% block title %}PyMasVis{% endblock %}</title>
+  <style type="text/css" media="screen">
+    body {
+      font-family: sans-serif;
+      background: rgb(252,252,252);
+    }
+    div#wrapper {
+      max-width: 600pt;
+      margin: 3em auto;
+    }
+    header h1 {
+      margin-bottom: 0.1em;
+      color: rgb(242,242,242);
+      text-align: center;
+      font-weight: bold;
+      font-size: 5em;
+      letter-spacing: -0.2em;
+    }
+    div#flash {
+      min-height: 5em;
+      margin: 1em 0em;
+    }
+    div#flash p {
+      margin: 0.2em 0em;
+      padding: 0.5em;
+      border: 1px solid rgb(255,230,230);
+      background: rgb(255,252,252);
+      color: rgb(128,52,52);
+    }
+  </style>
+  {% endblock %}
+</head>
+<body>
+<div id="wrapper">
+  <header role="banner">
+    <h1>{{ self.title() }}</h1>
+    <div id="flash">
+    {% for msg in get_flashed_messages() %}
+      <p>{{msg}}</p>
+    {% endfor %}
+    </div>
+  </header>
+
+  <main role="main">
+  {% block main %}{% endblock %}
+  </main>
+
+  <footer role="contentinfo">
+  {% block footer %}{% endblock %}
+  </footer>
+</div>
+</body>
+</html>
