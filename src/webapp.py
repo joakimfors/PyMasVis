@@ -140,9 +140,9 @@ def rand_str(length):
 
 def killer():
 	global pool
-	global thread
-	if thread:
-		thread.kill()
+	#global thread
+	#if thread:
+	#	thread.kill()
 	if pool:
 		pool.close()
 		pool.join()
