@@ -4,6 +4,7 @@ import io
 import time
 import random
 import string
+import pprint
 import logging
 import resource
 import multiprocessing
@@ -14,7 +15,7 @@ import eventlet.wsgi
 import analyze as pymasvis
 
 from eventlet.green import zmq
-from flask import Flask, render_template, session, request, send_file, abort, flash, jsonify, url_for, redirect
+from flask import Flask, Markup, render_template, session, request, send_file, abort, flash, jsonify, url_for, redirect
 from werkzeug.exceptions import HTTPException
 from flask_socketio import SocketIO, emit, join_room, rooms
 from PIL import Image
@@ -26,7 +27,7 @@ app.config['TRAP_HTTP_EXCEPTIONS'] = True
 socketio = SocketIO(app, async_mode='eventlet')
 pool = None
 thread = None
-pawnshop = {}
+storage = {}
 
 
 @app.before_first_request
@@ -59,6 +60,12 @@ def test():
 
 @app.route('/')
 def index():
+	links = []
+	for imgid, img in storage.iteritems():
+		if img['uid'] == session['uid']:
+			links.append('<a href="%s">%s</a> ' % (img['imgurl'], img['imgname']))
+	if links:
+		flash(Markup("You have the following images available for download: %s" % ', '.join(links)))
 	return render_template('index.html', debug=app.debug)
 
 
@@ -67,11 +74,8 @@ def index():
 def analyze(imgid):
 	global pool
 	if request.method == 'GET':
-		try:
-			imgname = pawnshop[imgid]['imgname']
-			imgbuf = pawnshop[imgid]['imgbuf']
-			del(pawnshop[imgid])
-		except KeyError as e:
+		img = storage.pop(imgid, None)
+		if not img:
 			flash('Analysis already downloaded or removed')
 			app.logger.error(str(e))
 			abort(410)
@@ -86,28 +90,30 @@ def analyze(imgid):
 			flash('No file found in request')
 			app.logger.error(str(f))
 			abort(400)
+		socketio.emit('progress', {'message': 'Uploaded...', 'status': 'inprogress'}, room=session['uid'])
 		infile = f.filename
 		inbuffer = f.stream.read()
-		result = pool.apply_async(render, (infile, inbuffer, session['uid']))
+		imgid = rand_str(8)
+		imgname = "%s-pymasvis.png" % infile
+		imgurl = url_for('analyze', imgid=imgid)
+		if request.is_xhr:
+			def callback(result):
+				if 'error' not in result:
+					storage[result['imgid']] = result
+		else:
+			callback = None
+		result = pool.apply_async(process, (infile, inbuffer, imgid, imgname, imgurl, session['uid']), callback=callback)
+		if request.is_xhr:
+			return jsonify({
+				'message': 'OK'
+			})
 		while not result.ready():
 			eventlet.sleep(0.5)
-		imgbuf = result.get(timeout=1)
-		imgname = "%s-pymasvis.png" % infile
-		if type(imgbuf) is not io.BytesIO:
-			flash('Failed to analyze file')
+		img = result.get()
+		if 'error' in img:
+			flash(img['error'])
 			abort(415)
-		if request.is_xhr:
-			imgid = rand_str(8)
-			pawnshop[imgid] = {
-				'imgname': imgname,
-				'imgbuf': imgbuf,
-				'ts': time.time()
-			}
-			imgurl = url_for('analyze', imgid=imgid)
-			return jsonify({
-				'imgurl': imgurl
-			})
-	return send_file(imgbuf, as_attachment=True, attachment_filename=imgname, mimetype='image/png')
+	return send_file(img['imgbuf'], as_attachment=True, attachment_filename=img['imgname'], mimetype='image/png')
 
 
 @app.route('/status')
@@ -117,10 +123,15 @@ def status():
 	return result, 200
 
 
+@app.route('/stored')
+def pawned():
+	return pprint.pformat(storage, depth=2)
+
+
 @socketio.on('connect')
 def on_connect():
 	app.logger.info('Client connected with sid: %s', request.sid)
-	emit('event', {'data': 'Connected', 'count': 0})
+	emit('event', {'message': 'Connected'})
 
 
 @socketio.on('disconnect')
@@ -138,39 +149,50 @@ def rand_str(length):
 	return ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(length)])
 
 
-def killer():
-	global pool
-	#global thread
-	#if thread:
-	#	thread.kill()
-	if pool:
-		pool.close()
-		pool.join()
-
-
 def msg_router():
 	ctx = zmq.Context()
 	sock = ctx.socket(zmq.PULL)
 	sock.bind('tcp://127.0.0.1:64646')
 	while True:
 		msg = sock.recv_pyobj()
-		socketio.emit('progress', {'message': msg[1], 'status': msg[2]}, room=msg[0])
+		uid = msg.pop('uid')
+		socketio.emit('progress', msg, room=uid)
 
 
-def render(infile, inbuffer, uid):
+def process(infile, inbuffer, imgid, imgname, imgurl, uid):
 	app.logger.info('Render req from uid: %s', uid)
 	ctx = zmq.Context()
 	sock = ctx.socket(zmq.PUSH)
 	sock.connect('tcp://127.0.0.1:64646')
-	sock.send_pyobj([uid, 'Analysing...', 'start'])
+	sock.send_pyobj({
+		'uid': uid,
+		'message': 'Reading...',
+		'status': 'inprogress'
+	})
 	def callback(event, tid, desc=None, secs=None):
 		if event == 'start':
-			sock.send_pyobj([uid, desc, 'inprogress'])
+			sock.send_pyobj({
+				'uid': uid,
+				'message': desc,
+				'status': 'inprogress'
+			})
 	track = pymasvis.load_file(infile, inbuffer)
 	if type(track) is int:
-		sock.send_pyobj([uid, 'Failed to find audiostream in file', 'finished'])
+		sock.send_pyobj({
+			'uid': uid,
+			'message': 'Failed to find audio in file',
+			'status': 'error'
+		})
 		eventlet.sleep(2)
-		return 0
+		return {
+			'imgid': imgid,
+			'error': 'Failed to find audio in file'
+		}
+	sock.send_pyobj({
+		'uid': uid,
+		'message': 'Analysing...',
+		'status': 'inprogress'
+	})
 	result = pymasvis.analyze(track, callback=callback)
 	detailed, overview = pymasvis.render(track, result, track['metadata']['name'], render_overview=False, callback=callback)
 	img = Image.open(detailed)
@@ -180,13 +202,36 @@ def render(infile, inbuffer, uid):
 	detailed.close()
 	img.close()
 	imgbuf.seek(0)
-	sock.send_pyobj([uid, 'Done!', 'finished'])
-	return imgbuf
+	sock.send_pyobj({
+		'uid': uid,
+		'message': 'Done!',
+		'url': imgurl,
+		'status': 'finished'
+	})
+	sock.close()
+	return {
+		'imgid': imgid,
+		'imgbuf': imgbuf,
+		'imgname': imgname,
+		'imgurl': imgurl,
+		'uid': uid,
+		'ts': time.time()
+	}
+
+
+def killer():
+	global pool
+	#global thread
+	#if thread:
+	#	thread.kill()
+	if pool:
+		pool.terminate()
+		pool.join()
 
 
 def main(host=None, port=None):
 	global pool
-	pool = multiprocessing.Pool()
+	pool = multiprocessing.Pool(maxtasksperchild=10)
 	atexit.register(killer)
 	socketio.run(app, host=host, port=port, debug=app.debug)
 
@@ -200,6 +245,7 @@ if __name__ == '__main__':
 	if args.debug:
 		app.debug = True
 		pymasvis.log.setLevel(logging.INFO)
+		multiprocessing.log_to_stderr().setLevel(multiprocessing.SUBDEBUG)
 	else:
 		app.debug = False
 	main(args.host, args.port)

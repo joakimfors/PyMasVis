@@ -15,11 +15,27 @@
   <script src="static/jquery-2.2.3.min.js" type="text/javascript" charset="utf-8"></script>
   <script src="static/socket.io.js" type="text/javascript" charset="utf-8"></script>
   <script type="text/javascript">
-    function flash(message) {
-      var flash = document.getElementById('flash');
+    function doFlash(message) {
+      var f = document.getElementById('flash');
       var p = document.createElement('p');
       p.innerText = message;
-      $(p).hide().delay(400).fadeIn().appendTo(flash);
+      $(p).hide().delay(400).fadeIn().appendTo(f);
+    }
+
+    function doStatus(message) {
+      var s = document.getElementById('status');
+      var d = document.createElement('div');
+      d.innerText = message;
+      $(d).hide().fadeIn().appendTo(s);
+    }
+
+    function doDownload(link) {
+      var a = document.createElement('a');
+      document.body.appendChild(a);
+      a.style = 'display: none';
+      a.href = link;
+      a.click();
+      a.parentNode.removeChild(a);
     }
 
     function toTitleCase(str) {
@@ -33,13 +49,21 @@
       socket.emit('join', {room: "{{session['uid']}}"})
     });
 
-    socket.on('progress', function(data) {
-      {% if debug %}console.log(data);{% endif %}
-      switch (data.status) {
+    socket.on('progress', function(msg) {
+      {% if debug %}console.log(msg);{% endif %}
+      switch (msg.status) {
         case 'inprogress':
-          var d = document.createElement('div');
-          d.innerText = data.message;
-          $(d).hide().fadeIn().appendTo('#status');
+          doStatus(msg.message);
+          break;
+        case 'error':
+          doFlash(msg.message);
+          $('#analyze :input').prop('disabled', false);
+          $('#status div').fadeOut();
+          break;
+        case 'finished':
+          $('#analyze :input').prop('disabled', false);
+          $('#status div').fadeOut();
+          doDownload(msg.url);
           break;
       }
     });
@@ -70,12 +94,12 @@
           data: data,
           dataType: 'json'
         }).done(function(data, text, xhr) {
-          var a = document.createElement('a');
-          document.body.appendChild(a);
-          a.style = 'display: none';
-          a.href = data['imgurl'];
-          a.click();
-          a.parentNode.removeChild(a);
+          {% if debug %}
+          console.log('Done');
+          console.log(data);
+          console.log(text);
+          console.log(xhr);
+          {% endif %}
         }).fail(function(xhr, text, error) {
           {% if debug %}
           console.log('Error');
@@ -83,21 +107,20 @@
           console.log(text);
           console.log(error);
           {% endif %}
+          $('#analyze :input').prop('disabled', false);
+          $('#status div').fadeOut();
           if (!('responseJSON' in xhr)) {
-            flash(toTitleCase(error));
+            doFlash(toTitleCase(error));
             return;
           }
           if ('flash' in xhr.responseJSON) {
             xhr.responseJSON.flash.forEach(function(item) {
-              flash(item);
+              doFlash(item);
             });
           }
           if ('error' in xhr.responseJSON) {
-            flash(xhr.responseJSON.error);
+            doFlash(xhr.responseJSON.error);
           }
-        }).always(function(data, text, xhr) {
-          $('#analyze :input').prop('disabled', false);
-          $('#status div').fadeOut();
         });
         event.preventDefault();
         $('#analyze :input').prop('disabled', true);
@@ -105,9 +128,7 @@
           $(this).remove();
         });
         $('#status').empty();
-        var d = document.createElement('div');
-        d.innerText = 'Uploading...';
-        $(d).hide().fadeIn().appendTo('#status');
+        doStatus('Uploading...');
       });
     });
   </script>
