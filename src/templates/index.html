@@ -15,11 +15,24 @@
   <script src="static/jquery-2.2.3.min.js" type="text/javascript" charset="utf-8"></script>
   <script src="static/socket.io.js" type="text/javascript" charset="utf-8"></script>
   <script type="text/javascript">
+    function flash(message) {
+      var flash = document.getElementById('flash');
+      var p = document.createElement('p');
+      p.innerText = message;
+      $(p).hide().delay(400).fadeIn().appendTo(flash);
+    }
+
+    function toTitleCase(str) {
+      return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+    }
+
     var socket = io(location.protocol+'//'+location.hostname+(location.port ? ':'+location.port: ''));
+
     socket.on('connect', function() {
       {% if debug %}console.log('connect');{% endif %}
       socket.emit('join', {room: "{{session['uid']}}"})
     });
+
     socket.on('progress', function(data) {
       {% if debug %}console.log(data);{% endif %}
       switch (data.status) {
@@ -30,9 +43,11 @@
           break;
       }
     });
+
     socket.on('disconnect', function() {
       {% if debug %}console.log('disconnect');{% endif %}
     });
+
     $(document).ready(function() {
       $('#analyze').submit(function(event) {
         var data = new FormData(document.getElementById('analyze'));
@@ -68,15 +83,18 @@
           console.log(text);
           console.log(error);
           {% endif %}
-          var flash = document.getElementById('flash');
-          xhr.responseJSON.flash.forEach(function(item) {
-            var p = document.createElement('p');
-            p.innerText = item;
-            $(p).hide().delay(400).fadeIn().appendTo(flash);
-          });
-          var p = document.createElement('p');
-          p.innerText = xhr.responseJSON.error;
-          $(p).hide().delay(400).fadeIn().appendTo(flash);
+          if (!('responseJSON' in xhr)) {
+            flash(toTitleCase(error));
+            return;
+          }
+          if ('flash' in xhr.responseJSON) {
+            xhr.responseJSON.flash.forEach(function(item) {
+              flash(item);
+            });
+          }
+          if ('error' in xhr.responseJSON) {
+            flash(xhr.responseJSON.error);
+          }
         }).always(function(data, text, xhr) {
           $('#analyze :input').prop('disabled', false);
           $('#status div').fadeOut();
