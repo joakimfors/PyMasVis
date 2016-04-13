@@ -8,6 +8,9 @@
       font-family: sans-serif;
       background: rgb(252,252,252);
     }
+    a {
+      color: rgb(52,52,128);
+    }
     div#wrapper {
       max-width: 600pt;
       margin: 3em auto;
@@ -20,6 +23,15 @@
       font-size: 5em;
       letter-spacing: -0.2em;
     }
+    footer {
+      margin-top: 3em;
+      text-align: center;
+      font-size: 0.8em;
+      color: rgb(128,128,128);
+    }
+    footer a {
+      color: rgb(128,128,196);
+    }
     div#flash {
       min-height: 5em;
       margin: 1em 0em;
@@ -30,6 +42,9 @@
       border: 1px solid rgb(255,230,230);
       background: rgb(255,252,252);
       color: rgb(128,52,52);
+    }
+    div#flash p a {
+      color: rgb(128,52,96);
     }
   </style>
   {% endblock %}
@@ -50,7 +65,9 @@
   </main>
 
   <footer role="contentinfo">
-  {% block footer %}{% endblock %}
+  {% block footer %}
+    <p>Code available on <a href="https://github.com/joakimfors/PyMasVis">GitHub</a>.</p>
+  {% endblock %}
   </footer>
 </div>
 </body>
