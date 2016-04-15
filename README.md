@@ -9,15 +9,25 @@ Analyze a file by running `python src/analyze.py filename [filename ...]`. The r
 
 ![Example result](doc/Rick Astley - Never Gonna Give You Up.spotify-pymasvis.png)
 
+There is also a web app which enables you to use a webbrowser as a UI. Start it with `python src/webapp.py` and point your browser at http://localhost:5000 it is possible to change the listening address and port with `--host` and `--port`.
+
 
 ## Requirements
+
+The stand alone analyser requires the following components
 
 - FFmpeg
 - NumPy
 - SciPy
 - Matplotlib
 - Pillow
-- (pyspotify)
+
+The web app requires
+
+- flask
+- flask-socketio
+- eventlet
+- pyzmq
 
 
 ### Python requirements installation
