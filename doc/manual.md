@@ -60,6 +60,8 @@ The overview graph is appropriate for displaying condensed information about an 
 
 The crest factor, the level of the highest peak, DR value and relative loudness are shown to the right of each of the graphs. The values can differ from those in the detailed analysis, since all channels are analyzed as one.
 
+![Example overview result](overview-pymasvis.png)
+
 
 ### The detailed analysis graph
 
