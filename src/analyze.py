@@ -25,6 +25,8 @@ import re
 import time
 import json
 import logging
+import operator
+import collections
 import numpy as np
 import scipy as sp
 import matplotlib
@@ -42,7 +44,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="1.0.1"
+VERSION="1.1.0"
 
 DEBUG=False
 
@@ -51,7 +53,7 @@ lh = logging.StreamHandler(sys.stdout)
 lh.setFormatter(logging.Formatter("%(message)s"))
 log.addHandler(lh)
 log.setLevel(logging.WARNING)
-overviews = {}
+overviews = collections.OrderedDict()
 
 
 class Timer:
@@ -1078,9 +1080,13 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 			filename = os.path.basename(infile)
 			filename = "%s-pymasvis.%s" % (filename, fmt)
 			outfile = os.path.join(destdir, filename)
-		if not update and os.path.isfile(outfile):
-			log.warning("Destination file %s already exists", outfile)
-			return
+		if os.path.isfile(outfile):
+			if update == 'no':
+				log.warning("Destination file %s already exists", outfile)
+				return
+			elif update == 'outdated' and os.path.getmtime(outfile) > os.path.getmtime(infile):
+				log.warning("Destination file %s exist and is newer than %s", outfile, infile)
+				return
 		if not os.path.splitext(outfile)[1][1:] in ['png', 'jpg']:
 			log.warning("Only png and jpg supported as output format")
 			return
@@ -1110,6 +1116,7 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 		with Timer('Rendering...') as tr:
 			detailed, overview = render(track, analysis, header, callback=Steps.callback)
 			img = Image.open(detailed)
+			log.info("Writing %s", outfile)
 			if fmt == 'png':
 				img = img.convert(mode='P', palette='ADAPTIVE', colors=256)
 				img.save(outfile, 'PNG', optimize=True)
@@ -1138,8 +1145,10 @@ if __name__ == "__main__":
 	parser.add_argument('-p', '--password', metavar='password', help="Spotify password")
 	parser.add_argument('-r', '--recursive', action='store_true', help="recurse directory tree if input is a directory")
 	parser.add_argument('--destdir', metavar='destdir', type=str, default='', help="destination directory to store analysis in")
-	parser.add_argument('--update', default='yes', type=str, choices=['yes', 'no'], help="choose wheter to update a result image or not, default: yes")
+	parser.add_argument('--update', default='yes', type=str, choices=['yes', 'no', 'outdated'], help="choose wheter to update a result image or not, default: yes")
 	parser.add_argument('--format', default='png', type=str, choices=['png', 'jpg'], help="selects output format, default: png")
+	parser.add_argument('--overview', action='store_const', const='overview-pymasvis', help="generate overview")
+	parser.add_argument('--overview-mode', default='dir', type=str, choices=['dir', 'flat'], help="generate an overview file per directory or one file for all inputs, default: dir")
 	parser.add_argument('inputs', metavar='input', type=str, nargs='+', help='a file, directory or Spotify URI to analyze')
 	args = parser.parse_args()
 	if args.verbose:
@@ -1147,6 +1156,11 @@ if __name__ == "__main__":
 	if args.debug:
 		DEBUG = True
 		log.setLevel(logging.DEBUG)
+	if args.overview and args.update != 'yes':
+		log.error("Update must be set to 'yes' to enable overviews")
+		exit(1)
+	if args.overview:
+		args.overview += '.%s' % args.format
 	formats = file_formats()
 	candidates = []
 	#print args.inputs
@@ -1172,22 +1186,31 @@ if __name__ == "__main__":
 		if fsenc:
 			encoding = fsenc
 			break
-	update = {'yes': True, 'no': False}[args.update]
 	for candidate in candidates:
 		infile = candidate.decode(encoding)
 		outfile = None
 		header = None
 		log.warning(infile)
-		run(infile, outfile, 'overview.png', args.format, args.destdir, update, header, args.username, args.password)
-	if update:
-		for overviewfile,images in overviews.iteritems():
-			#print overviewfile, len(images)
+		run(infile, outfile, args.overview, args.format, args.destdir, args.update, header, args.username, args.password)
+	if args.overview:
+		if args.overview_mode == 'flat':
+			if args.destdir:
+				if not os.path.isdir(args.destdir):
+					log.debug("Creating destdir %s", args.destdir)
+					os.mkdir(args.destdir)
+				args.overview = os.path.join(args.destdir, args.overview)
+			overviews = {args.overview: reduce(operator.add, overviews.itervalues())}
+		for overviewfile, images in overviews.iteritems():
 			w,h = images[0].size
 			n = len(images)
 			out = Image.new('RGBA', (w, h*n))
 			for i,image in enumerate(images):
-				#print image.size
 				out.paste(image, (0,h*i))
-			out = out.convert(mode='P', palette='ADAPTIVE', colors=256)
-			out.save(overviewfile, 'PNG', optimize=True)
+			log.info("Writing overview %s", overviewfile)
+			if args.format == 'png':
+				out = out.convert(mode='P', palette='ADAPTIVE', colors=256)
+				out.save(overviewfile, 'PNG', optimize=True)
+			elif args.format == 'jpg':
+				out.save(overviewfile, 'JPEG', quality=80, optimize=True)
+
 
