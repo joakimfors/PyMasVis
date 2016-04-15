@@ -197,7 +197,7 @@ def load_file(infile, inbuffer=None):
 	if 'bit_rate' in stream:
 		bps = int(stream['bit_rate'])
 	if 'duration_ts' in stream:
-		nf = int(stream['duration_ts'])
+		ns = int(stream['duration_ts'])
 	if 'sample_rate' in stream:
 		fs = int(stream['sample_rate'])
 	if 'channels' in stream:
@@ -244,18 +244,18 @@ def load_file(infile, inbuffer=None):
 	#	tail = gcd(4, nc*3)
 	#	print tail
 	#	usable = raw_data.shape[0] - tail
-	#	nf = int(usable/(nc*3))
-	#	print raw_data.shape, usable, nf, nc
+	#	ns = int(usable/(nc*3))
+	#	print raw_data.shape, usable, ns, nc
 	#	print raw_data.flags, raw_data.dtype, type(raw_data)
 	#	raw_data = raw_data[:usable].view(np.dtype('<i4'))
-	#	raw_data = as_strided(raw_data, strides=(3,nc*3,), shape=(nc,nf))
+	#	raw_data = as_strided(raw_data, strides=(3,nc*3,), shape=(nc,ns))
 	#	raw_data = ((raw_data << 8) >> 8).copy(order='C')
 	#	print raw_data.flags, raw_data.dtype
 	#else:
 	raw_data = raw_data.reshape((nc, -1), order='F').copy(order='C')
 	log.debug(raw_data.shape)
-	nf = raw_data[0].shape[0]
-	sec = nf / float(fs)
+	ns = raw_data[0].shape[0]
+	sec = ns / float(fs)
 	if bits == 24:
 		raw_data /= 2**8
 	data = raw_data.astype('float')
@@ -269,7 +269,7 @@ def load_file(infile, inbuffer=None):
 			'fixed': raw_data,
 			'float': data
 		},
-		'frames': nf,
+		'samples': ns,
 		'samplerate': fs,
 		'channels': nc,
 		'bitdepth': bits,
@@ -312,7 +312,7 @@ def load_spotify(link, username, password):
 def analyze(track, callback=None):
 	data = track['data']['float']
 	raw_data = track['data']['fixed']
-	nf = track['frames']
+	ns = track['samples']
 	fs = track['samplerate']
 	nc = track['channels']
 	bits = track['bitdepth']
@@ -323,7 +323,7 @@ def analyze(track, callback=None):
 	bps = track['metadata']['bps']
 
 	log.info("Processing %s", name)
-	log.debug("\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tencoding: %s\n\tbitrate: %s", fs, nc, nf, bits, enc, bps)
+	log.debug("\tsample rate: %d\n\tchannels: %d\n\tframes: %d\n\tbits: %d\n\tencoding: %s\n\tbitrate: %s", fs, nc, ns, bits, enc, bps)
 
 	# Peak / RMS
 	with Timer('Calculating peak and RMS...', Steps.calc_pr, callback) as t:
@@ -345,40 +345,36 @@ def analyze(track, callback=None):
 	with Timer('Calculating loudest...', Steps.calc_loud, callback) as t:
 		window = int(fs / 50)
 		peak = data_peak.max()
-		sn_max = 0
-		pos_max = 0
-		c_max = 0
-		sn_cur = 0
-		c_max, f_max, nf_cur, nf_max = 0, 0, 0, 0
+		c_max, s_max, ns_cur, ns_max = 0, 0, 0, 0
 		for c in range(nc):
 			# Find the indices where the sample value is 95% of track peak value
 			peaks = np.flatnonzero(np.abs(data[c]) > 0.95*peak)
 			if len(peaks) == 0:
 				continue
-			nf_cur = 0
+			ns_cur = 0
 			it = np.nditer(peaks, flags=['buffered','c_index'], op_flags=['readonly'])
-			for e in it:
+			for s in it:
 				i = it.iterindex
 				# Count the number of samples (indices) within the window
-				nf_cur = (peaks[i:i+window] < e + window).sum()
-				if nf_cur > nf_max:
+				ns_cur = (peaks[i:i+window] < s + window).sum()
+				if ns_cur > ns_max:
 					c_max = c
-					nf_max = nf_cur
-					f_max = e
-		w_max = (f_max - fs/20, f_max + fs/20)
+					ns_max = ns_cur
+					s_max = s
+		w_max = (s_max - fs/20, s_max + fs/20)
 		if w_max[0] < 0:
 			w_max = (0, fs/10)
-		if w_max[1] > nf:
-			w_max = (nf - fs/10, nf)
+		if w_max[1] > ns:
+			w_max = (ns - fs/10, ns)
 
 	# True peaks
 	with Timer('Calculating true peaks...', Steps.calc_tp, callback) as t:
 		fir = fir_coeffs()
 		fir_phases, fir_size = fir.shape
 		d_size = data.itemsize
-		strides = nf-fir_size
+		strides = ns - fir_size
 		true_peak = np.copy(data_peak)
-		steps = int((nf-3*fs)/fs)+1
+		steps = int((ns - 3*fs)/fs) + 1
 		sttp = np.zeros((nc, steps))
 		for c in range(nc):
 			fir_strides = as_strided(data[c], (strides, fir_size, 1), (d_size, d_size, d_size))
@@ -393,7 +389,7 @@ def analyze(track, callback=None):
 	# EBU R.128
 	with Timer('Calculating EBU R 128...', Steps.calc_ebur128, callback) as t:
 		l_kg = itu1770(data, fs, gated=True)
-		steps = int((nf-3*fs)/fs)+1
+		steps = int((ns-3*fs)/fs)+1
 		stl = np.zeros(steps)
 		for i in range(steps):
 			j = i*fs
@@ -419,7 +415,7 @@ def analyze(track, callback=None):
 
 	# Spectrum
 	with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
-		frames = nf/fs
+		frames = ns/fs
 		wfunc = np.blackman(fs)
 		norm_spec = np.zeros((nc,fs))
 		for c in range(nc):
@@ -456,7 +452,7 @@ def analyze(track, callback=None):
 
 	# Peak vs RMS
 	with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback) as t:
-		n_1s = nf/fs
+		n_1s = ns/fs
 		peak_1s_dbfs = np.zeros((nc, n_1s))
 		rms_1s_dbfs = np.zeros((nc, n_1s))
 		crest_1s_db = np.zeros((nc, n_1s))
@@ -470,15 +466,15 @@ def analyze(track, callback=None):
 
 	# DR
 	with Timer('Calculating DR...', Steps.calc_dr, callback) as t:
-		dr_blocks = int(nf/(3.0*fs))
-		dr_nf = dr_blocks*3*fs
-		dr_tail = nf - dr_nf
-		dr_data = data[:,:dr_nf].reshape(nc, -1, 3*fs)
+		dr_blocks = int(ns/(3.0*fs))
+		dr_ns = dr_blocks*3*fs
+		dr_tail = ns - dr_ns
+		dr_data = data[:,:dr_ns].reshape(nc, -1, 3*fs)
 		dr_rms = np.sqrt(2*((dr_data**2).mean(2)))
 		dr_peak = np.absolute(dr_data).max(2)
 		if dr_tail > 0:
-			dr_rms = np.append(dr_rms, np.sqrt(2*((data[:,dr_nf:]**2).mean(1, keepdims=True))), 1)
-			dr_peak = np.append(dr_peak, np.absolute(data[:,dr_nf:]).max(1, keepdims=True), 1)
+			dr_rms = np.append(dr_rms, np.sqrt(2*((data[:,dr_ns:]**2).mean(1, keepdims=True))), 1)
+			dr_peak = np.append(dr_peak, np.absolute(data[:,dr_ns:]).max(1, keepdims=True), 1)
 		dr_rms.sort()
 		dr_peak.sort()
 		dr_20 = int(round(dr_rms.shape[1]*0.2))
@@ -500,8 +496,8 @@ def analyze(track, callback=None):
 		'true_peak_dbtp': true_peak_dbtp,
 		'c_max': c_max,
 		'w_max': w_max,
-		'f_max': f_max,
-		'nf_max': nf_max,
+		's_max': s_max,
+		'ns_max': ns_max,
 		'norm_spec': norm_spec,
 		'frames': frames,
 		'n_1s': n_1s,
@@ -582,9 +578,9 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	w_max = analysis['w_max']
 	with Timer("Drawing left channel...", Steps.draw_left, callback) as t:
 		ax_lch = subplot(gs[0,:])
-		new_data, new_nf, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
-		new_fs = new_nf/sec
-		new_range = np.arange(0.0, new_nf, 1)/new_fs
+		new_data, new_ns, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
+		new_fs = new_ns/sec
+		new_range = np.arange(0.0, new_ns, 1)/new_fs
 		plot(new_range, new_data, 'b-')
 		xlim(0, round(sec))
 		ylim(-1.0, 1.0)
@@ -598,9 +594,9 @@ def render(track, analysis, header, render_overview=True, callback=None):
 		# Right channel
 		with Timer("Drawing right channel...", Steps.draw_right, callback) as t:
 			ax_rch = subplot(gs[1,:], sharex=ax_lch)
-			new_data, new_nf, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
-			new_fs = new_nf/sec
-			new_range = np.arange(0.0, new_nf, 1)/new_fs
+			new_data, new_ns, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
+			new_fs = new_ns/sec
+			new_range = np.arange(0.0, new_ns, 1)/new_fs
 			plot(new_range, new_data, 'r-')
 			xlim(0, round(sec))
 			ylim(-1.0, 1.0)
@@ -615,14 +611,14 @@ def render(track, analysis, header, render_overview=True, callback=None):
 			axis_defaults(ax_rch)
 
 	# Loudest
-	f_max = analysis['f_max']
-	nf_max = analysis['nf_max']
+	s_max = analysis['s_max']
+	ns_max = analysis['ns_max']
 	with Timer("Drawing loudest...", Steps.draw_loud, callback) as t:
 		ax_max = subplot(gs[2,:])
 		plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 		ylim(-1.0, 1.0)
 		xlim(w_max[0]/float(fs), w_max[1]/float(fs))
-		title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], nf_max, f_max/float(fs)), fontsize='small', loc='left')
+		title("Loudest part (%s ch, %d samples > 95%% during 20 ms at %0.2f s)" % (c_name[c_max], ns_max, s_max/float(fs)), fontsize='small', loc='left')
 		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
 		ax_max.xaxis.set_major_locator(MaxNLocatorMod(nbins=5, prune='both'))
 		ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
@@ -1000,19 +996,19 @@ def fir_coeffs():
 
 def itu1770(data, fs, gated=False):
 	nc = data.shape[0]
-	nf = data.shape[1]
+	ns = data.shape[1]
 	g = np.array([1.0, 1.0, 1.0, 0.0, 1.41, 1.41]) # FL+FR+FC+LFE+BL+BR
 	g = g[0:nc].reshape(nc,1)
 	b, a = kfilter_coeffs(fs)
 	data_k = signal.lfilter(b, a, data, 1)
 	if gated:
-		nf_gate = int(fs*0.4)
-		nf_step = int((1-0.75)*nf_gate)
-		steps = int((nf-nf_gate) / (nf_step)) + 1
+		ns_gate = int(fs*0.4)
+		ns_step = int((1-0.75)*ns_gate)
+		steps = int((ns-ns_gate) / (ns_step)) + 1
 		z = np.zeros((nc, steps), dtype=np.float)
 		for i in range(steps):
-			j = i*nf_step
-			z[:,i:i+1] = (data_k[:,j:j+nf_gate]**2).mean(1, keepdims=True)
+			j = i*ns_step
+			z[:,i:i+1] = (data_k[:,j:j+ns_gate]**2).mean(1, keepdims=True)
 		with np.errstate(divide='ignore'):
 			l = -0.691 + 10.0*np.log10((g*z).sum(0))
 		gamma_a = -70
