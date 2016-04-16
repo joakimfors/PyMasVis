@@ -389,7 +389,7 @@ def analyze(track, callback=None):
 	# EBU R.128
 	with Timer('Calculating EBU R 128...', Steps.calc_ebur128, callback) as t:
 		l_kg = itu1770(data, fs, gated=True)
-		steps = int((ns-3*fs)/fs)+1
+		steps = int((ns - 3*fs)/fs) + 1
 		stl = np.zeros(steps)
 		for i in range(steps):
 			j = i*fs
