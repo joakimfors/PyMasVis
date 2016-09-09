@@ -113,11 +113,12 @@ class SpotiDump:
 				'fixed': raw_data,
 				'float': data
 			},
-			'frames': self.frames,
+			'samples': self.frames,
 			'samplerate': self.sample_rate,
 			'channels': self.channels,
 			'bitdepth': self.bitdepth,
 			'duration': duration,
+			'format': 'vorbis',
 			'metadata': {
 				'source': 'Spotify',
 				'filename': name + '.ogg',
@@ -153,7 +154,7 @@ if __name__ == '__main__':
 	print track['metadata']
 	try:
 		wavfile = wave.open(track['metadata']['name'] + '.wav', 'wb')
-		wavfile.setparams((track['channels'], 2, track['samplerate'], track['frames'], 'NONE', 'NONE'))
+		wavfile.setparams((track['channels'], 2, track['samplerate'], track['samples'], 'NONE', 'NONE'))
 		wavfile.writeframes(track['data']['buffer'].getvalue())
 		wavfile.close()
 	except wave.Error as e:
