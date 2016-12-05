@@ -1103,6 +1103,8 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 	#	log.debug(data_id)
 	if not outfile and spotify:
 		filename = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
+		illegals = dict((ord(char), ord('~')) for char in '\/*?:"<>|')
+		filename = filename.translate(illegals)
 		outfile = os.path.join(destdir, filename)
 	if not header:
 		header = "%s" % (track['metadata']['name'])
