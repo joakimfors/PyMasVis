@@ -44,7 +44,7 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="1.1.1"
+VERSION="1.2.0"
 
 DEBUG=False
 
@@ -303,8 +303,7 @@ def lcm(a, b):
 	return a * b // gcd(a, b)
 
 
-def load_spotify(link, username, password):
-	dumper = SpotiDump(username, password)
+def load_spotify(link, dumper):
 	track = dumper.dump(link)
 	return track
 
@@ -1060,7 +1059,7 @@ def file_formats():
 	return formats
 
 
-def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=True, header=None, username=None, password=None):
+def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=True, header=None, dumper=None):
 	loader = None
 	loader_args = []
 	spotify = False
@@ -1086,10 +1085,10 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 		if not os.path.splitext(outfile)[1][1:] in ['png', 'jpg']:
 			log.warning("Only png and jpg supported as output format")
 			return
-	elif infile.startswith('spotify:'):
+	elif infile.startswith('spotify:track:'):
 		log.debug("Selecting Spotify loader")
 		loader = load_spotify
-		loader_args = [infile, username, password]
+		loader_args = [infile, dumper]
 		spotify = True
 	else:
 		log.warning("Unable to open input %s", infile)
@@ -1161,11 +1160,17 @@ if __name__ == "__main__":
 		args.overview += '.%s' % args.format
 	formats = file_formats()
 	candidates = []
-	#print args.inputs
+	dumper = None
 	for f in args.inputs:
 		if f.startswith('spotify:'):
-			from spotidump import SpotiDump
-			candidates.append(f)
+			if not dumper:
+				from spotidump import SpotiDump
+				dumper = SpotiDump(args.username, args.password)
+			if f.startswith('spotify:track:'):
+				candidates.append(f)
+			elif f.startswith('spotify:album:') or f.startswith('spotify:user:'):
+				tracks = dumper.get_tracks(f)
+				candidates.extend(tracks)
 			continue
 		if os.path.isfile(f):
 			candidates.append(f)
@@ -1189,7 +1194,7 @@ if __name__ == "__main__":
 		outfile = None
 		header = None
 		log.warning(infile)
-		run(infile, outfile, args.overview, args.format, args.destdir, args.update, header, args.username, args.password)
+		run(infile, outfile, args.overview, args.format, args.destdir, args.update, header, dumper)
 	if args.overview:
 		if args.overview_mode == 'flat':
 			if args.destdir:

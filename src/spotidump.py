@@ -11,6 +11,7 @@ import numpy as np
 
 from binascii import unhexlify
 
+log = logging.getLogger('pymasvis')
 
 class SpotiDump:
 	user_agent = "PyMasVis"
@@ -24,7 +25,6 @@ class SpotiDump:
 		config.settings_location = "/tmp/spotidump"
 		config.application_key = self.app_key
 		config.user_agent = self.user_agent
-		self.config = config
 		session = spotify.Session(config=config)
 		session.on(spotify.SessionEvent.CONNECTION_STATE_UPDATED, self.on_connection_state_updated)
 		session.on(spotify.SessionEvent.END_OF_TRACK, self.on_end_of_track)
@@ -32,6 +32,10 @@ class SpotiDump:
 		session.on(spotify.SessionEvent.MUSIC_DELIVERY, self.on_music_delivery)
 		session.on(spotify.SessionEvent.GET_AUDIO_BUFFER_STATS, self.on_get_audio_buffer_stats)
 		self.session = session
+		self.loop = spotify.EventLoop(self.session)
+		self.loop.start()
+		self.logged_in = threading.Event()
+		self.end_of_track = threading.Event()
 
 	def on_connection_state_updated(self, session):
 		if session.connection.state is spotify.ConnectionState.LOGGED_IN:
@@ -39,9 +43,9 @@ class SpotiDump:
 
 	def on_logged_in(self, session, error_type):
 		if error_type is spotify.ErrorType.OK:
-			print('Logged in as %s' % session.user)
+			log.debug('Logged in as %s', session.user)
 		else:
-			print('Login failed: %s' % error_type)
+			log.critical('Login failed: %s', error_type)
 
 	def on_end_of_track(self, session):
 		self.end_of_track.set()
@@ -55,10 +59,10 @@ class SpotiDump:
 		self.buf.write(bytearray(frames))
 		if self.count % 100 == 0:
 			pos = self.frames / float(self.sample_rate)
-			per = 100.0 * pos / self.duration
+			pct = 100.0 * pos / self.duration
 			real = time.time() - self.start
 			speed = pos / real
-			print "\t%3d %%, %5.1f s, %5.1f s, %5.1fx" % (per, pos, real, speed)
+			log.debug("\t%3d %%, %5.1f s, %5.1f s, %5.1fx", pct, pos, real, speed)
 		self.count += 1
 		return num_frames
 
@@ -73,15 +77,10 @@ class SpotiDump:
 		self.bitdepth = 0
 		self.sample_rate = 0
 		self.count = 0
-		self.logged_in = threading.Event()
-		self.end_of_track = threading.Event()
-		self.loop = spotify.EventLoop(self.session)
-		self.loop.start()
-		self.session.login(self.username, self.password)
-		self.logged_in.wait()
 		self.session.volume_normalization = False
 		self.session.preferred_bitrate(spotify.Bitrate.BITRATE_320k)
 		self.session.preferred_offline_bitrate(spotify.Bitrate.BITRATE_320k)
+		self.login()
 		track = self.session.get_track(uri)
 		track.load()
 		artists = []
@@ -95,7 +94,8 @@ class SpotiDump:
 		name = '%s - %s' % (artist, title)
 		self.duration = duration = track.duration / 1000.0
 		self.start = time.time()
-		print 'Dumping %s' % name
+		log.info('Dumping %s', name)
+		self.session.player.prefetch(track)
 		self.session.player.load(track)
 		self.session.player.play()
 		try:
@@ -103,7 +103,8 @@ class SpotiDump:
 				pass
 		except KeyboardInterrupt:
 			pass
-		self.session.logout()
+		self.session.player.unload()
+		self.end_of_track.clear()
 		raw_data = np.frombuffer(self.buf.getvalue(), dtype=np.int16).reshape(2, -1, order='F').copy(order='C')
 		data = raw_data.astype('float')
 		data /= 2**(self.bitdepth-1)
@@ -134,6 +135,34 @@ class SpotiDump:
 			}
 		}
 
+	def get_tracks(self, uri):
+		tracks = []
+		self.login()
+		link = self.session.get_link(uri)
+		log.debug(link)
+		if link.type is spotify.LinkType.ALBUM:
+			album = link.as_album()
+			browser = album.browse()
+			browser.load()
+			log.debug(browser.tracks)
+			for track in browser.tracks:
+				tracks.append(track.link.uri)
+		elif link.type is spotify.LinkType.PLAYLIST:
+			playlist = link.as_playlist()
+			playlist.load()
+			for track in playlist.tracks:
+				tracks.append(track.link.uri)
+		return tracks
+
+	def login(self):
+		if self.session.connection.state is not spotify.ConnectionState.LOGGED_IN:
+			self.session.login(self.username, self.password)
+			self.logged_in.wait()
+
+	def logout(self):
+		self.session.logout()
+
+
 if __name__ == '__main__':
 	import optparse
 	import wave
@@ -147,15 +176,27 @@ if __name__ == '__main__':
 	(options, args) = op.parse_args()
 	if len(args) != 1:
 		op.error("Missing spotify link")
+	lh = logging.StreamHandler(sys.stdout)
+	lh.setFormatter(logging.Formatter("%(message)s"))
+	log.addHandler(lh)
+	log.setLevel(logging.WARNING)
 	if options.verbose:
-		logging.basicConfig(level=logging.DEBUG)
+		log.setLevel(logging.DEBUG)
+		#slog = logging.getLogger('spotify')
+		#slog.addHandler(lh)
+		#slog.setLevel(logging.DEBUG)
 	dumper = SpotiDump(options.username, options.password)
-	track = dumper.dump(args[0])
-	print track['metadata']
+	if args[0].startswith('spotify:track:'):
+		track = dumper.dump(args[0])
+		log.debug(track['metadata'])
+	elif args[0].startswith('spotify:album:') or args[0].startswith('spotify:user:'):
+		tracks = dumper.get_tracks(args[0])
+		log.debug(tracks)
+		exit(0)
 	try:
 		wavfile = wave.open(track['metadata']['name'] + '.wav', 'wb')
 		wavfile.setparams((track['channels'], 2, track['samplerate'], track['samples'], 'NONE', 'NONE'))
 		wavfile.writeframes(track['data']['buffer'].getvalue())
 		wavfile.close()
 	except wave.Error as e:
-		print e
+		log.critical(e)
