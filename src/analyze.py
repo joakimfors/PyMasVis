@@ -16,6 +16,9 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+__version__ = '1.2.0'
+__author__ = 'Joakim Fors'
+
 import os
 import io
 import sys
@@ -44,9 +47,11 @@ from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, Forma
 from PIL import Image
 
 
-VERSION="1.2.0"
+VERSION = __version__
+DPI = 72
+WIDTH = 606.0
 
-DEBUG=False
+DEBUG = False
 
 log = logging.getLogger('pymasvis')
 lh = logging.StreamHandler(sys.stdout)
