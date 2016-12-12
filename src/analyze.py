@@ -86,8 +86,8 @@ class Timer:
 
 
 class Steps:
-	steps = 24
-	total, calc_pr, calc_loud, calc_tp, calc_ebur128, calc_plr, calc_spec, calc_ap, calc_hist, calc_pvsr, calc_dr, calc_csum, draw_plot, draw_left, draw_right, draw_loud, draw_spec, draw_ap, draw_hist, draw_pvsr, draw_stc, draw_ebur128, draw_overview, save = range(steps)
+	steps = 23
+	total, calc_pr, calc_loud, calc_tp, calc_ebur128, calc_plr, calc_spec, calc_ap, calc_hist, calc_pvsr, calc_dr, calc_csum, draw_plot, draw_ch, draw_loud, draw_spec, draw_ap, draw_hist, draw_pvsr, draw_stc, draw_ebur128, draw_overview, save = range(steps)
 	times = [0]*steps
 	descs = ['']*steps
 
@@ -534,6 +534,38 @@ class MaxNLocatorMod(MaxNLocator):
 		return ticks
 
 
+def positions(nc=1):
+	w = 606.0
+	h = 1060.0
+	h_single = 81.976010101
+	h_double = 163.952020202
+	h_sep = 31.61931818181818181240
+	h = round(h + (nc - 2) * (h_single +  h_sep))
+	left = 45.450
+	right = 587.82
+	top = 95.40
+	bottom = 37.100
+	header_y = 8.480
+	subheader_y = 26.500
+	footer_y = 7.420
+	hr = [1]*nc + [1, 2, 2, 1, 1]
+	n = len(hr)
+	return {
+		'w': w,
+		'h': h,
+		'left': left/w,
+		'right': right/w,
+		'top': (h-top)/h,
+		'bottom': bottom/h,
+		'header_y': (h-header_y)/h,
+		'subheader_y': (h-subheader_y)/h,
+		'footer_y': footer_y/h,
+		'hspace': (h_sep*n)/(h-top-bottom-h_sep*(n-1)),
+		'hr': hr,
+		'hn': n
+	}
+
+
 def render(track, analysis, header, render_overview=True, callback=None):
 	#
 	# Plot
@@ -548,9 +580,10 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	plr = analysis['plr_lu']
 	checksum = analysis['checksum']
 	lufs_to_lu = 23.0
+	c_color = ['b', 'r', 'g', 'y', 'c', 'm']
+	c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
+	nc_max = len(c_color)
 	with Timer("Drawing plot...", Steps.draw_plot, callback) as t:
-		c_color = ['b', 'r', 'g', 'y', 'c', 'm']
-		c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
 		subtitle_analysis = 'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  LRA: %.1f LU,  PLR: %.1f LU' % (crest_total_db, dr, l_kg+lufs_to_lu, lra, plr)
 		subtitle_source = 'Encoding: %s,  Channels: %d,  Bits: %d,  Sample rate: %d Hz,  Bitrate: %s kbps,  Source: %s' % (track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)), track['metadata']['source'])
 		subtitle_meta = []
@@ -562,15 +595,14 @@ def render(track, analysis, header, render_overview=True, callback=None):
 			subtitle_meta.append('Date: %s' % track['metadata']['date'])
 		subtitle_meta = ',  '.join(subtitle_meta)
 		subtitle = '\n'.join([subtitle_analysis, subtitle_source, subtitle_meta])
-		dpi = 72
-		fig_d = plt.figure('detailed', figsize=(606.0/dpi, 1058.0/dpi), facecolor='white', dpi=dpi)
-		fig_d.suptitle(header, fontsize='medium', y=0.992)
-		fig_d.text(0.5, 0.975, subtitle, fontsize='small', horizontalalignment='center', verticalalignment='top', linespacing=1.6)
-		fig_d.text(0.075, 0.007, ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
-		fig_d.text(0.975, 0.007, ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
+		pos = positions(nc)
+		fig_d = plt.figure('detailed', figsize=(pos['w']/DPI, pos['h']/DPI), facecolor='white', dpi=DPI)
+		fig_d.suptitle(header, fontsize='medium', y=pos['header_y'])
+		fig_d.text(0.5, pos['subheader_y'], subtitle, fontsize='small', horizontalalignment='center', verticalalignment='top', linespacing=1.6)
+		fig_d.text(pos['left'], pos['footer_y'], ('Checksum (energy): %d' % checksum), fontsize='small', va='bottom', ha='left')
+		fig_d.text(pos['right'], pos['footer_y'], ('PyMasVis %s' % (VERSION)), fontsize='small', va='bottom', ha='right')
 		rc('lines', linewidth=0.5, antialiased=True)
-		gs = gridspec.GridSpec(7, 2, width_ratios=[2, 1], height_ratios=[1, 1, 1, 2, 2, 1, 1], hspace=0.3, wspace=0.2, left=0.075, right=0.975, bottom=0.035, top=0.91)
-
+		gs = gridspec.GridSpec(pos['hn'], 2, width_ratios=[2, 1], height_ratios=pos['hr'], hspace=pos['hspace'], wspace=0.2, left=pos['left'], right=pos['right'], bottom=pos['bottom'], top=pos['top'])
 
 	# Left channel
 	data = track['data']['float']
@@ -580,45 +612,39 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	true_peak_dbtp = analysis['true_peak_dbtp']
 	c_max = analysis['c_max']
 	w_max = analysis['w_max']
-	with Timer("Drawing left channel...", Steps.draw_left, callback) as t:
-		ax_lch = subplot(gs[0,:])
-		new_data, new_ns, new_range = pixelize(data[0], ax_lch, which='both', oversample=2)
-		new_fs = new_ns/sec
-		new_range = np.arange(0.0, new_ns, 1)/new_fs
-		plot(new_range, new_data, 'b-')
-		xlim(0, round(sec))
-		ylim(-1.0, 1.0)
-		title(u"Left: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[0], rms_dbfs[0], peak_dbfs[0], true_peak_dbtp[0]), fontsize='small', loc='left')
-		setp(ax_lch.get_xticklabels(), visible=False)
-		yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-		if c_max == 0:
-			mark_span(ax_lch, (w_max[0]/float(fs), w_max[1]/float(fs)))
-
-	if nc > 1:
-		# Right channel
-		with Timer("Drawing right channel...", Steps.draw_right, callback) as t:
-			ax_rch = subplot(gs[1,:], sharex=ax_lch)
-			new_data, new_ns, new_range = pixelize(data[1], ax_lch, which='both', oversample=2)
+	with Timer("Drawing channels...", Steps.draw_ch, callback) as t:
+		ax_ch = []
+		c = 0
+		while c < nc and c < nc_max:
+			if c == 0:
+				ax_ch.append(subplot(gs[c,:]))
+			else:
+				ax_ch.append(subplot(gs[c,:], sharex=ax_ch[0]))
+			new_data, new_ns, new_range = pixelize(data[c], ax_ch[c], which='both', oversample=2)
 			new_fs = new_ns/sec
 			new_range = np.arange(0.0, new_ns, 1)/new_fs
-			plot(new_range, new_data, 'r-')
+			plot(new_range, new_data, color=c_color[c], linestyle='-')
 			xlim(0, round(sec))
 			ylim(-1.0, 1.0)
-			title(u"Right: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (crest_db[1], rms_dbfs[1], peak_dbfs[1], true_peak_dbtp[1]), fontsize='small', loc='left')
+			title(u"%s: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, True Peak≈%0.2f dBTP" % (c_name[c].capitalize(), crest_db[c], rms_dbfs[c], peak_dbfs[c], true_peak_dbtp[c]), fontsize='small', loc='left')
 			yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
-			ax_rch.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
-			ax_rch.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
-			xlabel('s', fontsize='small')
-			if c_max == 1:
-				mark_span(ax_rch, (w_max[0]/float(fs), w_max[1]/float(fs)))
-			axis_defaults(ax_lch)
-			axis_defaults(ax_rch)
+			if c_max == c:
+				mark_span(ax_ch[c], (w_max[0]/float(fs), w_max[1]/float(fs)))
+			if c+1 == nc or c+1 == nc_max:
+				ax_ch[c].xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
+				ax_ch[c].xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+				xlabel('s', fontsize='small')
+			else:
+				setp(ax_ch[c].get_xticklabels(), visible=False)
+			axis_defaults(ax_ch[c])
+			c += 1
+	spi = c - 1
 
 	# Loudest
 	s_max = analysis['s_max']
 	ns_max = analysis['ns_max']
 	with Timer("Drawing loudest...", Steps.draw_loud, callback) as t:
-		ax_max = subplot(gs[2,:])
+		ax_max = subplot(gs[spi+1,:])
 		plot(np.arange(*w_max)/float(fs), data[c_max][np.arange(*w_max)], c_color[c_max])
 		ylim(-1.0, 1.0)
 		xlim(w_max[0]/float(fs), w_max[1]/float(fs))
@@ -633,7 +659,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	norm_spec = analysis['norm_spec']
 	frames = analysis['frames']
 	with Timer("Drawing spectrum...", Steps.draw_spec, callback) as t:
-		ax_norm = subplot(gs[3,0])
+		ax_norm = subplot(gs[spi+2,0])
 		semilogx(
 			[0.02, 0.06], [-80, -90], 'k-',
 			[0.02,  0.2], [-70, -90], 'k-',
@@ -670,7 +696,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	ap_freqs = analysis['ap_freqs']
 	ap_crest = analysis['ap_crest']
 	with Timer("Drawing allpass...", Steps.draw_ap, callback) as t:
-		ax_ap = subplot(gs[3,1])
+		ax_ap = subplot(gs[spi+2,1])
 		for c in range(nc):
 			semilogx(ap_freqs/1000.0, crest_db[c]*np.ones(len(ap_freqs)), color=c_color[c], linestyle='--', basex=10)
 			semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0,1)[c], color=c_color[c], linestyle='-', basex=10)
@@ -688,7 +714,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	hist_bits = analysis['hist_bits']
 	hist_title_bits = []
 	with Timer("Drawing histogram...", Steps.draw_hist, callback) as t:
-		ax_hist = subplot(gs[4,0])
+		ax_hist = subplot(gs[spi+3,0])
 		for c in range(nc):
 			new_hist, new_n, new_range = pixelize(hist[c], ax_hist, which='max', oversample=2)
 			new_hist[(new_hist == 1.0)] = 1.3
@@ -708,7 +734,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	rms_1s_dbfs = analysis['rms_1s_dbfs']
 	peak_1s_dbfs = analysis['peak_1s_dbfs']
 	with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, callback) as t:
-		ax_pr = subplot(gs[4,1])
+		ax_pr = subplot(gs[spi+3,1])
 		plot(
 			[-50,    0], [-50, 0], 'k-',
 			[-50,  -10], [-40, 0], 'k-',
@@ -736,7 +762,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	crest_1s_db = analysis['crest_1s_db']
 	n_1s = analysis['n_1s']
 	with Timer("Drawing short term crest...", Steps.draw_stc, callback) as t:
-		ax_1s = subplot(gs[5,:])
+		ax_1s = subplot(gs[spi+4,:])
 		for c in range(nc):
 			plot(np.arange(n_1s)+0.5, crest_1s_db[c], linestyle='', marker='o', markerfacecolor='w', markeredgecolor=c_color[c], markeredgewidth=0.7)
 		ylim(0,30)
@@ -754,7 +780,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	stl = analysis['stl']
 	stplr = analysis['stplr_lu']
 	with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, callback) as t:
-		ax_ebur128 = subplot(gs[6,:])
+		ax_ebur128 = subplot(gs[spi+5,:])
 		plot(np.arange(stl.size)+1.5, stl+lufs_to_lu, 'ko', markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
 		ylim(-18,18)
 		xlim(0,n_1s)
@@ -782,7 +808,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 		if render_overview:
 			w_o = 606.0
 			h_o = 64.0
-			fig_o = plt.figure('overview', figsize=(w_o/dpi, h_o/dpi), facecolor='white', dpi=dpi)
+			fig_o = plt.figure('overview', figsize=(w_o/DPI, h_o/DPI), facecolor='white', dpi=DPI)
 			ax_o = fig_o.add_subplot(111)
 			#ax_o.set_position([0.05, 0.05, 0.9, 0.5])
 			ax_o.set_position([12/w_o, 8/h_o, 464/w_o, 40/h_o])
@@ -796,7 +822,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 			info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
 			text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False) # 46, top
 
-			fig_buf = plt.figure('buffer', figsize=(w_buf/dpi, h_buf/dpi), facecolor='white', dpi=dpi)
+			fig_buf = plt.figure('buffer', figsize=(w_buf/DPI, h_buf/DPI), facecolor='white', dpi=DPI)
 			w, h = fig_buf.canvas.get_width_height()
 			#print w,h
 			fig_buf.patch.set_visible(False)
@@ -835,7 +861,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 			#print ax_o.bbox.bounds
 
 			overview = io.BytesIO()
-			plt.savefig(overview, format='png', dpi=dpi, transparent=False)
+			plt.savefig(overview, format='png', dpi=DPI, transparent=False)
 			plt.close(fig_o)
 		else:
 			overview = None
@@ -844,7 +870,7 @@ def render(track, analysis, header, render_overview=True, callback=None):
 	with Timer("Saving...", Steps.save, callback) as t:
 		plt.figure('detailed')
 		detailed = io.BytesIO()
-		plt.savefig(detailed, format='png', dpi=dpi, transparent=False)
+		plt.savefig(detailed, format='png', dpi=DPI, transparent=False)
 		plt.close(fig_d)
 
 	return detailed, overview
