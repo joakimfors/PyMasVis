@@ -242,20 +242,6 @@ def load_file(infile, inbuffer=None):
 		log.warning('Could not convert %s', infile)
 		return e.returncode
 	raw_data = np.frombuffer(outbuf, dtype=conv['dtype'])
-	#if bits == 24:
-	# # => 24: {'format': 's24le', 'codec': 'pcm_s24le', 'dtype': np.dtype('u1')},
-	#	log.debug("tail %d", raw_data.shape[0]%(nc*3))
-	#	tail = gcd(4, nc*3)
-	#	print tail
-	#	usable = raw_data.shape[0] - tail
-	#	ns = int(usable/(nc*3))
-	#	print raw_data.shape, usable, ns, nc
-	#	print raw_data.flags, raw_data.dtype, type(raw_data)
-	#	raw_data = raw_data[:usable].view(np.dtype('<i4'))
-	#	raw_data = as_strided(raw_data, strides=(3,nc*3,), shape=(nc,ns))
-	#	raw_data = ((raw_data << 8) >> 8).copy(order='C')
-	#	print raw_data.flags, raw_data.dtype
-	#else:
 	raw_data = raw_data.reshape((nc, -1), order='F').copy(order='C')
 	log.debug(raw_data.shape)
 	ns = raw_data[0].shape[0]
@@ -410,11 +396,7 @@ def analyze(track, callback=None):
 	# PLR
 	with Timer('Calculatin PLR...', Steps.calc_plr, callback) as t:
 		plr_lu = true_peak_dbtp.max() - l_kg
-		#print plr_lu
-		#print sttp
 		stplr_lu = db(sttp.max(0), 1.0) - stl
-		#print stplr_lu
-		#print stl
 
 	# Spectrum
 	with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
@@ -809,21 +791,17 @@ def render(track, analysis, header, render_overview=True, callback=None):
 			h_o = 64.0
 			fig_o = plt.figure('overview', figsize=(w_o/DPI, h_o/DPI), facecolor='white', dpi=DPI)
 			ax_o = fig_o.add_subplot(111)
-			#ax_o.set_position([0.05, 0.05, 0.9, 0.5])
 			ax_o.set_position([12/w_o, 8/h_o, 464/w_o, 40/h_o])
 			ax_o.set_xticks([])
 			ax_o.set_yticks([])
 			header_o = "%s  [%s, %d ch, %d bits, %d Hz, %d kbps]" % (header, track['metadata']['encoding'], track['channels'], track['bitdepth'], fs, int(round(track['metadata']['bps']/1000.0)))
 			ax_o.set_title(header_o, fontsize='small', loc='left')
-			#print ax_o.bbox.bounds
 			w_buf = round(ax_o.bbox.bounds[2])
 			h_buf = round(ax_o.bbox.bounds[3])
 			info_o = u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  L$_k$ = %.1f LU" % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu)
-			text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False) # 46, top
-
+			text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small', verticalalignment='center', snap=False)
 			fig_buf = plt.figure('buffer', figsize=(w_buf/DPI, h_buf/DPI), facecolor='white', dpi=DPI)
 			w, h = fig_buf.canvas.get_width_height()
-			#print w,h
 			fig_buf.patch.set_visible(False)
 			ax_buf = plt.gca()
 			img_buf = np.zeros((h,w,4), np.uint8)
@@ -840,25 +818,12 @@ def render(track, analysis, header, render_overview=True, callback=None):
 				ax_buf.set_xlim(0,len(new_ch))
 				fig_buf.canvas.draw()
 				img = np.frombuffer(fig_buf.canvas.buffer_rgba(), np.uint8).reshape(h, w, -1)
-				#img_buf[:,:,0:3] = img[:,:,0:3] * (img[:,:,3:4] / 255.0) + img_buf[:,:,0:3] * ((255 - img[:,:,3:4]) / 255.0)
 				img_buf[:,:,0:3] = img[:,:,0:3] * (img_buf[:,:,0:3] / 255.0)
 				img_buf[:,:,-1] = np.maximum(img[:,:,-1], img_buf[:,:,-1])
-				#plt.savefig('buffer%d.png' % i, format='png', dpi=dpi, transparent=False)
-			#ax_buf.clear()
-			#ax_buf.axis('off')
-			#ax_buf.set_position([0, 0, 1, 1])
-			#ax_buf.set_xticks([])
-			#ax_buf.set_yticks([])
-			#ax_buf.imshow(img_buf)
-			#plt.savefig('buffer.png', format='png', dpi=dpi, transparent=False)
-			#img_buf[:,:,0:3] = img[:,:,3:4]
 			img_buf[:,:,0:3] = (img_buf[:,:,3:4] / 255.0) * img_buf[:,:,0:3] + (255 - img_buf[:,:,3:4])
 			img_buf[:,:,-1] = 255
-			#Image.fromarray(img_buf).save('buffer.png')
 			plt.figure('overview')
 			plt.imshow(img_buf, aspect='auto', interpolation='none')
-			#print ax_o.bbox.bounds
-
 			overview = io.BytesIO()
 			plt.savefig(overview, format='png', dpi=DPI, transparent=False)
 			plt.close(fig_o)
@@ -1156,9 +1121,6 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 					if overviewindex not in overviews:
 						overviews[overviewindex] = []
 					overviews[overviewindex].append(img_o)
-				#if fmt == 'png':
-				#	img_o = img_o.convert(mode='P', palette='ADAPTIVE', colors=256)
-				#	img_o.save('overview.png', 'PNG', optimize=True)
 	Steps.report()
 
 
