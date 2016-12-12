@@ -1146,7 +1146,7 @@ if __name__ == "__main__":
 	parser.add_argument('--format', default='png', type=str, choices=['png', 'jpg'], help="selects output format, default: png")
 	parser.add_argument('--overview', action='store_const', const='overview-pymasvis', help="generate overview")
 	parser.add_argument('--overview-mode', default='dir', type=str, choices=['dir', 'flat'], help="generate an overview file per directory or one file for all inputs, default: dir")
-	parser.add_argument('inputs', metavar='input', type=str, nargs='+', help='a file, directory or Spotify URI to analyze')
+	parser.add_argument('inputs', metavar='input', type=str, nargs='+', help='a file, directory or Spotify URI (track, album or playlist) to analyze')
 	args = parser.parse_args()
 	if args.verbose:
 		log.setLevel(logging.INFO)

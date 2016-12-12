@@ -13,7 +13,8 @@
     Analyze audio file or Spotify URI.
 
     positional arguments:
-      input                 a file, directory or Spotify URI to analyze
+      input                 a file, directory or Spotify URI (track, album or playlist)
+                            to analyze
 
     optional arguments:
       -h, --help            show this help message and exit
