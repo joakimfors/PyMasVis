@@ -1088,13 +1088,9 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 	else:
 		log.warning("Unable to open input %s", infile)
 		return
-	#return
 	track = loader(*loader_args)
 	if type(track) is int:
 		return
-	#with Timer("Hashing PCM data") as t:
-	#	data_id = sha256(track['data']['fixed'].tobytes()).hexdigest()
-	#	log.debug(data_id)
 	if not outfile and spotify:
 		filename = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
 		illegals = dict((ord(char), ord('~')) for char in '\/*?:"<>|')
