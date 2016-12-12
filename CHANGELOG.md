@@ -1,5 +1,9 @@
 # Change log
 
+## 1.3.0 - 2016-12-12
+### Added
+- Drawing of up to 6 waveforms from multichannel audio files
+
 
 ## 1.2.0 - 2016-12-11
 ### Fixed
