@@ -42,7 +42,7 @@ from hashlib import sha256
 from subprocess import CalledProcessError
 from numpy.lib.stride_tricks import as_strided
 from matplotlib import rc, gridspec
-from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, tight_layout, axvspan
+from matplotlib.pyplot import plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks, xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text, axvspan
 from matplotlib.ticker import MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter
 from PIL import Image
 
