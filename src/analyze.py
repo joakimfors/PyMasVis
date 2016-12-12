@@ -49,9 +49,8 @@ from PIL import Image
 
 VERSION = __version__
 DPI = 72
-WIDTH = 606.0
-
 DEBUG = False
+
 
 log = logging.getLogger('pymasvis')
 lh = logging.StreamHandler(sys.stdout)
