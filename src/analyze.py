@@ -585,7 +585,7 @@ def render(track, analysis, header, render_overview=False, callback=None):
 		rc('lines', linewidth=0.5, antialiased=True)
 		gs = gridspec.GridSpec(pos['hn'], 2, width_ratios=[2, 1], height_ratios=pos['hr'], hspace=pos['hspace'], wspace=0.2, left=pos['left'], right=pos['right'], bottom=pos['bottom'], top=pos['top'])
 
-	# Left channel
+	# Channels
 	data = track['data']['float']
 	sec = track['duration']
 	rms_dbfs = analysis['rms_dbfs']
@@ -1206,5 +1206,3 @@ if __name__ == "__main__":
 				out.save(overviewfile, 'PNG', optimize=True)
 			elif args.format == 'jpg':
 				out.save(overviewfile, 'JPEG', quality=80, optimize=True)
-
-
