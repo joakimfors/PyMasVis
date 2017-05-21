@@ -1092,7 +1092,7 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 	if type(track) is int:
 		return
 	if not outfile and spotify:
-		filename = "%s.spotify-pymasvis.%s" % (track['metadata']['name'], fmt)
+		filename = "%s.spotify-%s-pymasvis.%s" % (track['metadata']['name'], track['metadata']['id'], fmt)
 		illegals = dict((ord(char), ord('~')) for char in '\/*?:"<>|')
 		filename = filename.translate(illegals)
 		outfile = os.path.join(destdir, filename)

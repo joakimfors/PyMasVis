@@ -122,6 +122,7 @@ class SpotiDump:
 			'format': 'vorbis',
 			'metadata': {
 				'source': 'Spotify',
+				'id': track.link.uri.split(':')[-1],
 				'filename': name + '.ogg',
 				'extension': 'ogg',
 				'encoding': 'vorbis',
