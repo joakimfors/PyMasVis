@@ -81,7 +81,11 @@ class SpotiDump:
 		self.session.preferred_bitrate(spotify.Bitrate.BITRATE_320k)
 		self.session.preferred_offline_bitrate(spotify.Bitrate.BITRATE_320k)
 		self.login()
-		track = self.session.get_track(uri)
+		link = self.session.get_link(uri)
+		if not link.type is spotify.LinkType.TRACK:
+			log.error('Only link type track is supported, got', link.type)
+			return 1
+		track = link.as_track()
 		track.load()
 		artists = []
 		for artist in track.artists:
@@ -153,6 +157,8 @@ class SpotiDump:
 			playlist.load()
 			for track in playlist.tracks:
 				tracks.append(track.link.uri)
+		else:
+			log.warning('Unknown link type', link.type)
 		return tracks
 
 	def login(self):
