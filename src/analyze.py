@@ -547,7 +547,7 @@ def positions(nc=1):
 	}
 
 
-def render(track, analysis, header, render_overview=True, callback=None):
+def render(track, analysis, header, render_overview=False, callback=None):
 	#
 	# Plot
 	#
@@ -1102,7 +1102,10 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='', update=T
 		with Timer('Analyzing...') as ta:
 			analysis = analyze(track, callback=Steps.callback)
 		with Timer('Rendering...') as tr:
-			detailed, overview = render(track, analysis, header, callback=Steps.callback)
+			render_overview = False
+			if overviewfile:
+				render_overview = True
+			detailed, overview = render(track, analysis, header, render_overview=render_overview, callback=Steps.callback)
 			img = Image.open(detailed)
 			log.info("Writing %s", outfile)
 			if fmt == 'png':
