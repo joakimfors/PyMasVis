@@ -34,6 +34,19 @@ import numpy as np
 import scipy as sp
 import matplotlib
 matplotlib.use('AGG')
+matplotlib.rcParams['font.size'] = 12
+matplotlib.rcParams['legend.fontsize'] = 'large'
+matplotlib.rcParams['figure.titlesize'] = 'medium'
+matplotlib.rcParams['lines.linewidth'] = 1.0
+matplotlib.rcParams['lines.dashed_pattern'] = [6, 6]
+matplotlib.rcParams['lines.dashdot_pattern'] = [3, 5, 1, 5]
+matplotlib.rcParams['lines.dotted_pattern'] = [1, 3]
+matplotlib.rcParams['lines.scale_dashes'] = False
+#matplotlib.rcParams['axes.autolimit_mode'] = 'round_numbers'
+#matplotlib.rcParams['axes.xmargin'] = 0
+#matplotlib.rcParams['axes.ymargin'] = 0
+matplotlib.rcParams['xtick.direction'] = 'in'
+matplotlib.rcParams['ytick.direction'] = 'in'
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 
@@ -669,8 +682,9 @@ def render(track, analysis, header, render_overview=False, callback=None):
 		title("Normalized average spectrum, %d frames" % (frames), fontsize='small', loc='left')
 		ax_norm.set_xticks([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
 		ax_norm.set_xticks([0.03, 0.04, 0.06, 0.07, 0.08, 0.09, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 6, 8, 9, 10], minor=True)
-		ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7])
-		yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', 'dB'))
+		ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
+		ax_norm.set_xticklabels([], minor=True)
+		yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', ''))
 		axis_defaults(ax_norm)
 
 	# Allpass
@@ -782,7 +796,7 @@ def render(track, analysis, header, render_overview=False, callback=None):
 		ax_ebur128.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
 		axis_defaults(ax_ebur128)
 		axis_defaults(ax_ebur128_stplr)
-		ax_ebur128_stplr.tick_params(axis='y', which='major', labelsize='xx-small')
+		ax_ebur128_stplr.tick_params(axis='y', which='major', labelsize='xx-small', length=0)
 
 	# Overview
 	with Timer("Drawing overview...", Steps.draw_overview, callback):
