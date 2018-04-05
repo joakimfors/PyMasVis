@@ -1062,35 +1062,34 @@ def ap_coeffs(fc, fs):
 
 def kfilter_coeffs(fs):
     # Pre filter
-    f0 = 1500.0
-    w0 = 2*np.pi*f0/fs
-    Q = 0.5
-    gain = 4.0
-    A = 10**(gain/40)
-    S = 1.0
-    alpha = np.sin(w0)/2 * np.sqrt((A + 1/A)*(1/S - 1) + 2)
-    b0 = A*((A+1) + (A-1)*np.cos(w0) + 2*np.sqrt(A)*alpha)
-    b1 = -2*A*((A-1) + (A+1)*np.cos(w0))
-    b2 = A*((A+1) + (A-1)*np.cos(w0) - 2*np.sqrt(A)*alpha)
-    a0 = (A+1) - (A-1)*np.cos(w0) + 2*np.sqrt(A)*alpha
-    a1 = 2*((A-1) - (A+1)*np.cos(w0))
-    a2 = (A+1) - (A-1)*np.cos(w0) - 2*np.sqrt(A)*alpha
-    b_pre = [b0, b1, b2]/a0
-    a_pre = [a0, a1, a2]/a0
+    f0 = 1681.974450955533
+    G = 3.999843853973347
+    Q = 0.7071752369554196
 
-    # Highpass
-    f0 = 38.0
-    w0 = 2*np.pi*f0/fs
-    Q = 0.5
-    alpha = np.sin(w0)/(2*Q)
-    b0 = (1 + np.cos(w0))/2
-    b1 = -(1 + np.cos(w0))
-    b2 = (1 + np.cos(w0))/2
-    a0 = 1 + alpha
-    a1 = -2*np.cos(w0)
-    a2 = 1 - alpha
-    b_hp = [b0, b1, b2]/a0
-    a_hp = [a0, a1, a2]/a0
+    K = np.tan(np.pi * f0 / fs)
+    Vh = 10.0**(G / 20.0)
+    Vb = Vh**0.4996667741545416
+
+    a0 = 1.0 + K / Q + K * K
+    b0 = (Vh + Vb * K / Q + K * K) / a0
+    b1 = 2.0 * (K * K - Vh) / a0
+    b2 = (Vh - Vb * K / Q + K * K) / a0
+    a1 = 2.0 * (K * K - 1.0) / a0
+    a2 = (1.0 - K / Q + K * K) / a0
+
+    b_pre = [b0, b1, b2]
+    a_pre = [1.0, a1, a2]
+
+    # Highpass filter
+    f0 = 38.13547087602444
+    Q = 0.5003270373238773
+    K = np.tan(np.pi * f0 / fs)
+
+    a1 = 2.0 * (K * K - 1.0) / (1.0 + K / Q + K * K)
+    a2 = (1.0 - K / Q + K * K) / (1.0 + K / Q + K * K)
+
+    b_hp = [1.0, -2.0, 1.0]
+    a_hp = [1.0, a1, a2]
 
     b = signal.convolve(b_pre, b_hp)
     a = signal.convolve(a_pre, a_hp)
