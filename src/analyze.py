@@ -54,6 +54,7 @@ from PIL import Image
 VERSION = __version__
 DPI = 72
 DEBUG = False
+R128_OFFSET = 23
 
 matplotlib.rcParams['font.size'] = 12
 matplotlib.rcParams['legend.fontsize'] = 'large'
@@ -590,7 +591,8 @@ def positions(nc=1):
     }
 
 
-def render(track, analysis, header, render_overview=False, callback=None):
+def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
+           callback=None):
     #
     # Plot
     #
@@ -604,13 +606,18 @@ def render(track, analysis, header, render_overview=False, callback=None):
     plr = analysis['plr_lu']
     checksum = analysis['checksum']
     lufs_to_lu = 23.0
+    if r128_unit == 'LUFS':
+        r128_offset = 0
+    else:
+        r128_offset = R128_OFFSET
     c_color = ['b', 'r', 'g', 'y', 'c', 'm']
     c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
     nc_max = len(c_color)
     with Timer("Drawing plot...", Steps.draw_plot, callback) as t:
-        subtitle_analysis = (('Crest: %.2f dB,  DR: %d,  L$_K$: %.1f LU,  '
+        subtitle_analysis = (('Crest: %.2f dB,  DR: %d,  L$_K$: %.1f %s,  '
                               'LRA: %.1f LU,  PLR: %.1f LU')
-                             % (crest_total_db, dr, l_kg+lufs_to_lu, lra, plr))
+                             % (crest_total_db, dr, l_kg+r128_offset,
+                                r128_unit, lra, plr))
         subtitle_source = (('Encoding: %s,  Channels: %d,  Bits: %d,  '
                             'Sample rate: %d Hz,  Bitrate: %s kbps,  '
                             'Source: %s')
@@ -861,15 +868,16 @@ def render(track, analysis, header, render_overview=False, callback=None):
     with Timer("Drawing EBU R 128 loudness...",
                Steps.draw_ebur128, callback) as t:
         ax_ebur128 = subplot(gs[spi+5, :])
-        plot(np.arange(stl.size)+1.5, stl+lufs_to_lu, 'ko',
+        plot(np.arange(stl.size)+1.5, stl+r128_offset, 'ko',
              markerfacecolor='w', markeredgecolor='k', markeredgewidth=0.7)
-        ylim(-18, 18)
+        ylim(-41+r128_offset, -5+r128_offset)
         xlim(0, n_1s)
-        yticks([-10, 0, 10], (-10, 0, ''))
+        yticks([-33+r128_offset, -23+r128_offset, -13+r128_offset],
+               (-33+r128_offset, -23+r128_offset, ''))
         title("EBU R 128 Short term loudness", fontsize='small', loc='left')
         title("Short term PLR", fontsize='small', loc='right', color='grey')
         xlabel('s', fontsize='small')
-        ylabel('LU', fontsize='small', rotation=0)
+        ylabel('%s' % r128_unit, fontsize='small', rotation=0)
         ax_ebur128.yaxis.grid(True, which='major', linestyle=':', color='k',
                               linewidth=0.5)
         ax_ebur128_stplr = ax_ebur128.twinx()
@@ -1204,7 +1212,7 @@ def file_formats():
 
 
 def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='',
-        update=True, header=None, dumper=None):
+        update=True, header=None, dumper=None, r128_unit='LUFS'):
     loader = None
     loader_args = []
     spotify = False
@@ -1260,6 +1268,7 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='',
             if overviewfile:
                 render_overview = True
             detailed, overview = render(track, analysis, header,
+                                        r128_unit=r128_unit,
                                         render_overview=render_overview,
                                         callback=Steps.callback)
             img = Image.open(detailed)
@@ -1312,6 +1321,9 @@ if __name__ == "__main__":
         '--overview-mode', default='dir', type=str, choices=['dir', 'flat'],
         help=("generate an overview file per directory or one file for "
               "all inputs, default: dir"))
+    parser.add_argument(
+        '--lu', dest='r128_unit', default='LUFS', action='store_const',
+        const='LU', help="Use LU instead of LUFS when displaying R128 values")
     parser.add_argument(
         'inputs', metavar='input', type=str, nargs='+',
         help=('a file, directory or Spotify URI (track, album or playlist) '
@@ -1367,7 +1379,7 @@ if __name__ == "__main__":
         log.warning(infile)
         run(infile, outfile,
             args.overview, args.format, args.destdir, args.update,
-            header, dumper)
+            header, dumper, args.r128_unit)
     if args.overview:
         if args.overview_mode == 'flat':
             if args.destdir:
