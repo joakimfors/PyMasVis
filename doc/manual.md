@@ -68,7 +68,7 @@ The crest factor, the level of the highest peak, DR value and relative loudness 
 
 The detailed analysis graph shows a deeper analysis of a single track. Each graph shows a different aspect of the track, as described below.
 
-![Example result](Rick Astley - Never Gonna Give You Up.spotify-pymasvis.png)
+![Example result](Rick%20Astley%20-%20Never%20Gonna%20Give%20You%20Up.spotify-pymasvis.png)
 
 
 #### Header
