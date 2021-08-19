@@ -1,4 +1,13 @@
-numpy
-scipy
-matplotlib
-pillow
+backports.functools-lru-cache==1.6.4
+cycler==0.10.0
+functools32==3.2.3.post2
+kiwisolver==1.1.0
+matplotlib==2.0.0
+numpy==1.16.6
+Pillow==6.2.2
+pyparsing==2.4.7
+python-dateutil==2.8.2
+pytz==2021.1
+scipy==1.2.3
+six==1.16.0
+subprocess32==3.5.4
