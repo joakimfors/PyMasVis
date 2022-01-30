@@ -16,7 +16,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-__version__ = '1.6.0'
+"""
+anpassning till python 3.9, ändrat till version 1.6.1
+Lars Fredriksson
+2021-01-09
+"""
+
+
+__version__ = '1.6.1'
 __author__ = 'Joakim Fors'
 
 import os
@@ -44,7 +51,7 @@ from numpy.lib.stride_tricks import as_strided
 from matplotlib import rc, gridspec
 from matplotlib.pyplot import (
     plot, axis, subplot, subplots, figure, ylim, xlim, xlabel, ylabel, yticks,
-    xticks, title, semilogx, semilogy, loglog, hold, setp, hlines, text,
+    xticks, title, semilogx, semilogy, loglog, setp, hlines, text,
     axvspan)
 from matplotlib.ticker import (
     MaxNLocator, FuncFormatter, ScalarFormatter, FormatStrFormatter)
@@ -271,9 +278,9 @@ def load_file(infile, inbuffer=None):
     ns = raw_data[0].shape[0]
     sec = ns / float(fs)
     if bits == 24:
-        raw_data /= 2**8
+        raw_data = raw_data / 2**8
     data = raw_data.astype('float')
-    data /= 2**(bits-1)
+    data = data / 2**(bits-1)
     if not fmt:
         fmt = ext
     if artist and title:
@@ -303,6 +310,7 @@ def load_file(infile, inbuffer=None):
             'bps': bps
         }
     }
+    
     return output
 
 
@@ -379,11 +387,11 @@ def analyze(track, callback=None):
                     c_max = c
                     ns_max = ns_cur
                     s_max = s
-        w_max = (s_max - fs/20, s_max + fs/20)
+        w_max = [int(s_max - fs/20), int(s_max + fs/20)]
         if w_max[0] < 0:
-            w_max = (0, fs/10)
+            w_max = [0, int(fs/10)]
         if w_max[1] > ns:
-            w_max = (ns - fs/10, ns)
+            w_max = [ns - int(fs/10), ns]   
 
     # True peaks
     with Timer('Calculating true peaks...', Steps.calc_tp, callback) as t:
@@ -433,15 +441,13 @@ def analyze(track, callback=None):
 
     # Spectrum
     with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
-        frames = ns/fs
+        frames = ns//fs
         wfunc = np.blackman(fs)
         norm_spec = np.zeros((nc, fs))
         for c in range(nc):
             for i in np.arange(0, frames*fs, fs):
-                norm_spec[c] += (np.abs(
-                    np.fft.fft(np.multiply(data[c, i:i+fs], wfunc), fs))/fs)**2
-            norm_spec[c] = 20*np.log10(
-                (np.sqrt(norm_spec[c]/frames)) / (data_rms[c]))
+                norm_spec[c] += (np.abs(np.fft.fft(np.multiply(data[c, i:i+fs], wfunc), fs))/fs)**2
+            norm_spec[c] = 20*np.log10((np.sqrt(norm_spec[c]/frames)) / (data_rms[c]))
 
     # Allpass
     with Timer('Calculating allpass...', Steps.calc_ap, callback) as t:
@@ -475,7 +481,7 @@ def analyze(track, callback=None):
 
     # Peak vs RMS
     with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback) as t:
-        n_1s = ns/fs
+        n_1s = ns//fs
         peak_1s_dbfs = np.zeros((nc, n_1s))
         rms_1s_dbfs = np.zeros((nc, n_1s))
         crest_1s_db = np.zeros((nc, n_1s))
@@ -591,8 +597,8 @@ def positions(nc=1):
     }
 
 
-def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
-           callback=None):
+def render(track, analysis, header, r128_unit='LUFS', render_overview=False,textfile=False,
+           callback=None ):
     #
     # Plot
     #
@@ -614,7 +620,7 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
     c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
     nc_max = len(c_color)
     with Timer("Drawing plot...", Steps.draw_plot, callback) as t:
-        subtitle_analysis = (('Crest: %.2f dB,  DR: %d,  L$_K$: %.1f %s,  '
+        subtitle_analysis = (('Crests: %.2f dB,  DR: %d,  L$_K$: %.1f %s,  '
                               'LRA: %.1f LU,  PLR: %.1f LU')
                              % (crest_total_db, dr, l_kg+r128_offset,
                                 r128_unit, lra, plr))
@@ -678,12 +684,12 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
             plot(new_range, new_data, color=c_color[c], linestyle='-')
             xlim(0, round(sec))
             ylim(-1.0, 1.0)
-            title((u"%s: Crest=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, "
+            title((u"%s: Crests=%0.2f dB, RMS=%0.2f dBFS, Peak=%0.2f dBFS, "
                    u"True Peak≈%0.2f dBTP")
                   % (c_name[c].capitalize(), crest_db[c], rms_dbfs[c],
                      peak_dbfs[c], true_peak_dbtp[c]),
                   fontsize='small', loc='left')
-            yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+            yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '0.5', ''))
             if c_max == c:
                 mark_span(ax_ch[c], (w_max[0]/float(fs), w_max[1]/float(fs)))
             if c+1 == nc or c+1 == nc_max:
@@ -702,15 +708,17 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
     ns_max = analysis['ns_max']
     with Timer("Drawing loudest...", Steps.draw_loud, callback) as t:
         ax_max = subplot(gs[spi+1, :])
-        plot(np.arange(*w_max)/float(fs),
-             data[c_max][np.arange(*w_max)], c_color[c_max])
+        #print(np.arange(*w_max)/float(fs),data[c_max][np.arange(*w_max)], c_color[c_max])
+        #print("C_MAX=",c_max)
+        #print("W_MAX=",*w_max)
+        plot(np.arange(*w_max)/float(fs),data[c_max][np.arange(*w_max)], c_color[c_max])
         ylim(-1.0, 1.0)
         xlim(w_max[0]/float(fs), w_max[1]/float(fs))
         title(("Loudest part (%s ch, %d samples > 95%% "
                "during 20 ms at %0.2f s)")
               % (c_name[c_max], ns_max, s_max/float(fs)), fontsize='small',
               loc='left')
-        yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, '', ''))
+        yticks([1, -0.5, 0, 0.5, 1], ('', -0.5, 0, 0.5, ''))
         ax_max.xaxis.set_major_locator(MaxNLocatorMod(nbins=5, prune='both'))
         ax_max.xaxis.set_major_formatter(FormatStrFormatter("%0.2f"))
         xlabel('s', fontsize='small')
@@ -735,14 +743,14 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
             [0.60, 20.0], [-10, -40], 'k-',
             [2.00, 20.0], [-10, -30], 'k-',
             [6.00, 20.0], [-10, -20], 'k-',
-            basex=10
+            base=10
         )
         for c in range(nc):
             new_spec, new_n, new_r = pixelize(norm_spec[c], ax_norm,
                                               which='max', oversample=1,
                                               method='log10', span=(20, 20000))
             semilogx(new_r/1000.0, new_spec, color=c_color[c],
-                     linestyle='-', basex=10)
+                     linestyle='-', base=10)
         ylim(-90, -10)
         xlim(0.02, 20)
         ax_norm.yaxis.grid(True, which='major', linestyle=':',
@@ -761,8 +769,8 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
         ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7],
                                 minor=False)
         ax_norm.set_xticklabels([], minor=True)
-        yticks(np.arange(-90, -10, 10),
-               ('', -80, -70, -60, -50, -40, -30, '', ''))
+        yticks(np.arange(-90, 0, 10),
+               (' ', -80, -70, -60, -50, -40, -30, -20, ' '))
         axis_defaults(ax_norm)
 
     # Allpass
@@ -772,13 +780,13 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
         ax_ap = subplot(gs[spi+2, 1])
         for c in range(nc):
             semilogx(ap_freqs/1000.0, crest_db[c]*np.ones(len(ap_freqs)),
-                     color=c_color[c], linestyle='--', basex=10)
+                     color=c_color[c], linestyle='--', base=10)
             semilogx(ap_freqs/1000.0, ap_crest.swapaxes(0, 1)[c],
-                     color=c_color[c], linestyle='-', basex=10)
+                     color=c_color[c], linestyle='-', base=10)
         ylim(0, 30)
         xlim(0.02, 20)
-        title("Allpassed crest factor", fontsize='small', loc='left')
-        yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, ''))
+        title("Allpassed crests factor", fontsize='small', loc='left')
+        yticks(np.arange(0, 30, 5), ('', 5, 10, 15, 20, 25))
         xticks([0.1, 1, 2], (0.1, 1, 2))
         xlabel('kHz', fontsize='small')
         ylabel('dB', fontsize='small', rotation=0)
@@ -796,7 +804,7 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
             new_hist[(new_hist == 1.0)] = 1.3
             new_hist[(new_hist < 1.0)] = 1.0
             semilogy(np.arange(new_n)*2.0/new_n-1.0, new_hist,
-                     color=c_color[c], linestyle='-', basey=10,
+                     color=c_color[c], linestyle='-', base=10,
                      drawstyle='steps')
             hist_title_bits.append('%0.1f' % hist_bits[c])
         xlim(-1.1, 1.1)
@@ -844,7 +852,7 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
     # Shortterm crest
     crest_1s_db = analysis['crest_1s_db']
     n_1s = analysis['n_1s']
-    with Timer("Drawing short term crest...", Steps.draw_stc, callback) as t:
+    with Timer("Drawing short term crests...", Steps.draw_stc, callback) as t:
         ax_1s = subplot(gs[spi+4, :])
         for c in range(nc):
             plot(np.arange(n_1s)+0.5, crest_1s_db[c], linestyle='', marker='o',
@@ -852,10 +860,10 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
                  markeredgewidth=0.7)
         ylim(0, 30)
         xlim(0, n_1s)
-        yticks([10, 20], (10,))
+        yticks([10, 20], (10,20))
         ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k',
                          linewidth=0.5)
-        title("Short term (1 s) crest factor", fontsize='small', loc='left')
+        title("Short term (1 s) crests factor", fontsize='small', loc='left')
         xlabel('s', fontsize='small')
         ylabel('dB', fontsize='small', rotation=0)
         ax_1s.xaxis.set_major_locator(MaxNLocatorMod(prune='both'))
@@ -873,7 +881,7 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
         ylim(-41+r128_offset, -5+r128_offset)
         xlim(0, n_1s)
         yticks([-33+r128_offset, -23+r128_offset, -13+r128_offset],
-               (-33+r128_offset, -23+r128_offset, ''))
+               (-33+r128_offset, -23+r128_offset, -13+r128_offset))
         title("EBU R 128 Short term loudness", fontsize='small', loc='left')
         title("Short term PLR", fontsize='small', loc='right', color='grey')
         xlabel('s', fontsize='small')
@@ -913,7 +921,7 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
             ax_o.set_title(header_o, fontsize='small', loc='left')
             w_buf = round(ax_o.bbox.bounds[2])
             h_buf = round(ax_o.bbox.bounds[3])
-            info_o = ((u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  "
+            info_o = ((u"Crests = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  "
                        u"L$_k$ = %.1f LU")
                       % (crest_total_db, peak_dbfs.max(), dr, l_kg+lufs_to_lu))
             text_o = fig_o.text(482/w_o, 28/h_o, info_o, fontsize='small',
@@ -962,6 +970,18 @@ def render(track, analysis, header, r128_unit='LUFS', render_overview=False,
         plt.savefig(detailed, format='png', dpi=DPI, transparent=False)
         plt.close(fig_d)
 
+    # create file in current directory if not exists and write data to it, append if exists/LF
+    if textfile:    
+        filename = track['metadata']['album'] + ".txt"
+        #print(filename)
+        f = open(filename,"a+")
+        spl_header = header.split("-")
+        #np.set_printoptions(precision=2)
+        str = "Artist:{},Album:{},Track:{},Tracknr:{},Dr:{},Crests(dB):{:.2f},Lx(LUFS):{:.1f}\n"  
+        f.write(str.format(spl_header[0],track['metadata']['album'],spl_header[1],track['metadata']['track'],dr,crest_total_db[0], l_kg+r128_offset))
+        f.close
+    else:    
+        textfile = False
     return detailed, overview
 
 
@@ -972,11 +992,11 @@ def xpixels(ax):
 def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
     if not span:
         span = (0, len(x))
-        if method is 'log10':
+        if method == 'log10':
             span = (1, len(x) + 1)
     pixels = xpixels(ax)
     minmax = 1
-    if which is 'both':
+    if which == 'both':
         minmax = 2
     nw = int(pixels*oversample)
     w = (span[1]-span[0])/(pixels*oversample)
@@ -984,10 +1004,10 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
     y = np.zeros(n)
     r = np.zeros(n)
     for i in range(nw):
-        if method is 'linear':
+        if method == 'linear':
             j = int(np.round(i*w + span[0]))
             k = int(np.round(j+w + span[0]))
-        elif method is 'log10':
+        elif method == 'log10':
             a = np.log10(span[1]) - np.log10(span[0])
             b = np.log10(span[0])
             j = int(np.round(10**(i / float(nw) * a + b)) - 1)
@@ -996,11 +1016,11 @@ def pixelize(x, ax, method='linear', which='both', oversample=1, span=None):
             log.debug('pixelize tweak k')
             k = span[1]
         r[i] = k
-        if which is 'max':
+        if which == 'max':
             y[i] = x[j:k].max()
-        elif which is 'min':
+        elif which == 'min':
             y[i] = x[j:k].min()
-        elif which is 'both':
+        elif which == 'both':
             y[i*minmax] = x[j:k].max()
             y[i*minmax+1] = x[j:k].min()
     return (y, n, r)
@@ -1201,7 +1221,7 @@ def file_formats():
     except CalledProcessError as e:
         log.debug(e)
         return formats
-    for line in result.split('\n')[4:]:
+    for line in result.decode("ascii").split('\n')[4:]:
         bar = foo.match(line)
         if bar:
             formats += bar.group(1).split(',')
@@ -1212,7 +1232,7 @@ def file_formats():
 
 
 def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='',
-        update=True, header=None, dumper=None, r128_unit='LUFS'):
+        update=True, header=None, dumper=None, r128_unit='LUFS', textfile=False):
     loader = None
     loader_args = []
     spotify = False
@@ -1270,6 +1290,7 @@ def run(infile, outfile=None, overviewfile=None, fmt='png', destdir='',
             detailed, overview = render(track, analysis, header,
                                         r128_unit=r128_unit,
                                         render_overview=render_overview,
+                                        textfile = textfile,
                                         callback=Steps.callback)
             img = Image.open(detailed)
             log.info("Writing %s", outfile)
@@ -1325,9 +1346,12 @@ if __name__ == "__main__":
         '--lu', dest='r128_unit', default='LUFS', action='store_const',
         const='LU', help="Use LU instead of LUFS when displaying R128 values")
     parser.add_argument(
+        '--textfile', action='store_const', const='text-file',
+        help="generate textfile")    
+    parser.add_argument(
         'inputs', metavar='input', type=str, nargs='+',
         help=('a file, directory or Spotify URI (track, album or playlist) '
-              'to analyze'))
+              'to analyze'))         
     args = parser.parse_args()
     if args.verbose:
         log.setLevel(logging.INFO)
@@ -1359,8 +1383,10 @@ if __name__ == "__main__":
             continue
         if os.path.isdir(f):
             for root, dirs, files in os.walk(f):
-                for name in files:
-                    if os.path.splitext(name)[1][1:] in formats:
+                for name in files:    
+                    if name.startswith('._'):
+                        do_noting = 1                
+                    elif os.path.splitext(name)[1][1:] in formats:
                         candidates.append(os.path.join(root, name))
                 if not args.recursive:
                     del dirs[:]
@@ -1373,13 +1399,13 @@ if __name__ == "__main__":
             encoding = fsenc
             break
     for candidate in candidates:
-        infile = candidate.decode(encoding)
+        infile = candidate
         outfile = None
         header = None
         log.warning(infile)
         run(infile, outfile,
             args.overview, args.format, args.destdir, args.update,
-            header, dumper, args.r128_unit)
+            header, dumper, args.r128_unit, args.textfile)
     if args.overview:
         if args.overview_mode == 'flat':
             if args.destdir:
@@ -1389,8 +1415,8 @@ if __name__ == "__main__":
                 args.overview = os.path.join(args.destdir, args.overview)
             overviews = {args.overview: reduce(operator.add,
                                                overviews.itervalues())}
-        for overviewfile, images in overviews.iteritems():
-            w, h = images[0].size
+        for overviewfile, images in overviews.items():
+            w, h = images[0].size   
             n = len(images)
             out = Image.new('RGBA', (w, h*n))
             for i, image in enumerate(images):
