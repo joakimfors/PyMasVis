@@ -1,4 +1,8 @@
 # Change log
+## 1.6.1 - 2022-01-29
+### Added
+- Runs with Python V3
+- Support for output to textfile 
 
 ## 1.3.0 - 2016-12-12
 ### Added
