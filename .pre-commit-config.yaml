@@ -1,0 +1,24 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.4.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+      - id: check-toml
+      - id: check-case-conflict
+      - id: check-ast
+      - id: trailing-whitespace
+  - repo: https://github.com/ambv/black
+    rev: 22.8.0
+    hooks:
+      - id: black
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 5.0.4
+    hooks:
+      - id: flake8
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
