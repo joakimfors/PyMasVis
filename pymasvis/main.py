@@ -856,7 +856,7 @@ def render(
             [6.00, 20.0],
             [-10, -20],
             'k-',
-            basex=10,
+            base=10,
         )
         for c in range(nc):
             new_spec, new_n, new_r = pixelize(
@@ -867,9 +867,7 @@ def render(
                 method='log10',
                 span=(20, 20000),
             )
-            semilogx(
-                new_r / 1000.0, new_spec, color=c_color[c], linestyle='-', basex=10
-            )
+            semilogx(new_r / 1000.0, new_spec, color=c_color[c], linestyle='-', base=10)
         ylim(-90, -10)
         xlim(0.02, 20)
         ax_norm.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
@@ -919,14 +917,14 @@ def render(
                 crest_db[c] * np.ones(len(ap_freqs)),
                 color=c_color[c],
                 linestyle='--',
-                basex=10,
+                base=10,
             )
             semilogx(
                 ap_freqs / 1000.0,
                 ap_crest.swapaxes(0, 1)[c],
                 color=c_color[c],
                 linestyle='-',
-                basex=10,
+                base=10,
             )
         ylim(0, 30)
         xlim(0.02, 20)
@@ -954,7 +952,7 @@ def render(
                 new_hist,
                 color=c_color[c],
                 linestyle='-',
-                basey=10,
+                base=10,
                 drawstyle='steps',
             )
             hist_title_bits.append('%0.1f' % hist_bits[c])
