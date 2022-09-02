@@ -1586,6 +1586,7 @@ def run(
 
 if __name__ == "__main__":
     import argparse
+    from functools import reduce
 
     parser = argparse.ArgumentParser(description="Analyze audio file or Spotify URI.")
     parser.add_argument('--version', action='version', version="PyMasVis " + VERSION)
