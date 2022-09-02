@@ -1,0 +1,10 @@
+# Put ignored commit rev hashes here
+#
+# Use `git --ignore-revs-file .git-blame-ignore-revs`
+# or run `git config blame.ignoreRevsFile .git-blame-ignore-revs` to always use it
+#
+# Comment each additional rev why it should be ignored
+
+# formatting
+744996e28decdfe2bf605583db736d07c19d269b
+
