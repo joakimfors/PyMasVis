@@ -1491,12 +1491,12 @@ def file_formats():
     formats = []
     try:
         result = subprocess.check_output(
-            ['ffprobe', '-v', 'quiet', '-formats'], stderr=subprocess.STDOUT
+            ['ffprobe', '-v', 'quiet', '-formats'], stderr=subprocess.STDOUT, text=True
         )
     except CalledProcessError as e:
         log.debug(e)
         return formats
-    for line in result.split('\n')[4:]:
+    for line in result.split('\n')[4:]:  # skip preamble
         bar = foo.match(line)
         if bar:
             formats += bar.group(1).split(',')
