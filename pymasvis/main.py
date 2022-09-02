@@ -361,11 +361,6 @@ def lcm(a, b):
     return a * b // gcd(a, b)
 
 
-def load_spotify(link, dumper):
-    track = dumper.dump(link)
-    return track
-
-
 def analyze(track, callback=None):
     data = track['data']['float']
     raw_data = track['data']['fixed']
@@ -1521,12 +1516,10 @@ def run(
     destdir='',
     update=True,
     header=None,
-    dumper=None,
     r128_unit='LUFS',
 ):
     loader = None
     loader_args = []
-    spotify = False
     destdir = os.path.join(os.path.dirname(infile), destdir)
     if destdir and not os.path.isdir(destdir):
         log.debug("Creating destdir %s", destdir)
@@ -1553,26 +1546,12 @@ def run(
         if not os.path.splitext(outfile)[1][1:] in ['png', 'jpg']:
             log.warning("Only png and jpg supported as output format")
             return
-    elif infile.startswith('spotify:track:'):
-        log.debug("Selecting Spotify loader")
-        loader = load_spotify
-        loader_args = [infile, dumper]
-        spotify = True
     else:
         log.warning("Unable to open input %s", infile)
         return
     track = loader(*loader_args)
     if type(track) is int:
         return
-    if not outfile and spotify:
-        filename = "%s.spotify-%s-pymasvis.%s" % (
-            track['metadata']['name'],
-            track['metadata']['id'],
-            fmt,
-        )
-        illegals = dict((ord(char), ord('~')) for char in '\/*?:"<>|')
-        filename = filename.translate(illegals)
-        outfile = os.path.join(destdir, filename)
     if not header:
         header = "%s" % (track['metadata']['name'])
     with Timer('Running...', Steps.total, Steps.callback) as t:
@@ -1688,41 +1667,25 @@ if __name__ == "__main__":
     if args.overview:
         args.overview += '.%s' % args.format
     formats = file_formats()
-    candidates = []
-    dumper = None
+    infiles = []
     for f in args.inputs:
-        if f.startswith('spotify:'):
-            if not dumper:
-                from spotidump import SpotiDump
-
-                dumper = SpotiDump(args.username, args.password)
-            if f.startswith('spotify:track:'):
-                candidates.append(f)
-            elif f.startswith('spotify:album:') or f.startswith('spotify:user:'):
-                tracks = dumper.get_tracks(f)
-                candidates.extend(tracks)
-            continue
         if os.path.isfile(f):
-            candidates.append(f)
+            infiles.append(f)
             continue
         if os.path.isdir(f):
             for root, dirs, files in os.walk(f):
                 for name in files:
                     if os.path.splitext(name)[1][1:] in formats:
-                        candidates.append(os.path.join(root, name))
+                        infiles.append(os.path.join(root, name))
                 if not args.recursive:
                     del dirs[:]
-    if len(candidates) == 0:
-        log.warning(
-            "No valid candidates for analysation found: " + " ".join(args.inputs)
-        )
-    encoding = 'ascii'
+    if len(infiles) == 0:
+        log.warning("No valid files for analysis found: " + " ".join(args.inputs))
     for fsenc in [sys.getfilesystemencoding(), locale.getdefaultlocale()[1]]:
         if fsenc:
             encoding = fsenc
             break
-    for candidate in candidates:
-        infile = candidate.decode(encoding)
+    for infile in infiles:
         outfile = None
         header = None
         log.warning(infile)
@@ -1734,7 +1697,6 @@ if __name__ == "__main__":
             args.destdir,
             args.update,
             header,
-            dumper,
             args.r128_unit,
         )
     if args.overview:
