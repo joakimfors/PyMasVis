@@ -406,7 +406,7 @@ def analyze(track, callback=None):
 
     # Loudest
     with Timer('Calculating loudest...', Steps.calc_loud, callback) as t:
-        window = int(fs / 50)
+        window = fs // 50
         peak = data_peak.max()
         c_max, s_max, ns_cur, ns_max = 0, 0, 0, 0
         for c in range(nc):
@@ -425,11 +425,11 @@ def analyze(track, callback=None):
                     c_max = c
                     ns_max = ns_cur
                     s_max = s
-        w_max = (s_max - fs / 20, s_max + fs / 20)
+        w_max = (s_max - fs // 20, s_max + fs // 20)
         if w_max[0] < 0:
-            w_max = (0, fs / 10)
+            w_max = (0, fs // 10)
         if w_max[1] > ns:
-            w_max = (ns - fs / 10, ns)
+            w_max = (ns - fs // 10, ns)
 
     # True peaks
     with Timer('Calculating true peaks...', Steps.calc_tp, callback) as t:
@@ -479,7 +479,7 @@ def analyze(track, callback=None):
 
     # Spectrum
     with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
-        frames = ns / fs
+        frames = ns // fs
         wfunc = np.blackman(fs)
         norm_spec = np.zeros((nc, fs))
         for c in range(nc):
@@ -525,7 +525,7 @@ def analyze(track, callback=None):
 
     # Peak vs RMS
     with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback) as t:
-        n_1s = ns / fs
+        n_1s = ns // fs
         peak_1s_dbfs = np.zeros((nc, n_1s))
         rms_1s_dbfs = np.zeros((nc, n_1s))
         crest_1s_db = np.zeros((nc, n_1s))
