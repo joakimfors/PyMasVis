@@ -227,7 +227,7 @@ def load_file(infile, inbuffer=None):
         output, error = ffprobe.communicate(inbuffer)
         log.debug(output)
     except CalledProcessError as e:
-        log.warning('Could not probe %s', source)
+        log.warning('Could not probe %s', src)
         return e.returncode
     if ffprobe.returncode > 0:
         log.warning("Failed to probe file %s", infile)
