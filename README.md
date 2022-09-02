@@ -7,7 +7,7 @@ PyMasVis is a reimplementation of [MasVis](http://www.lts.a.se/lts/masvis) in Py
 
 Analyze a file by running `python src/analyze.py filename [filename ...]`. The result will be output to `filename-pymasvis.png`. Spotify analysis is done by running `python src/analyze.py -u username -p password spotify_uri`. Result when using Spotify is output to the current working directory.
 
-![Example result](doc/Rick Astley - Never Gonna Give You Up.spotify-pymasvis.png)
+![Example result](docs/Rick Astley - Never Gonna Give You Up.spotify-pymasvis.png)
 
 There is also a web app which enables you to use a webbrowser as a UI. Start it with `python src/webapp.py` and point your browser at http://localhost:5000 it is possible to change the listening address and port with `--host` and `--port`.
 

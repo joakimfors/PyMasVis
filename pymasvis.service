@@ -1,9 +1,0 @@
-[Unit]
-Description=PyMasVis webapp
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python /opt/pymasvis/src/webapp.py --host 0.0.0.0 --port 80
-
-[Install]
-WantedBy=multi-user.target
