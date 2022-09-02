@@ -1488,7 +1488,7 @@ def arrays_share_data(x, y):
 
 
 def file_formats():
-    foo = re.compile('\s+DE?\s+(\S+)\s+\S+')
+    foo = re.compile(r'\s+DE?\s+(\S+)\s+\S+')
     formats = []
     try:
         result = subprocess.check_output(
