@@ -1706,7 +1706,7 @@ if __name__ == "__main__":
                     os.mkdir(args.destdir)
                 args.overview = os.path.join(args.destdir, args.overview)
             overviews = {args.overview: reduce(operator.add, overviews.itervalues())}
-        for overviewfile, images in overviews.iteritems():
+        for overviewfile, images in overviews.items():
             w, h = images[0].size
             n = len(images)
             out = Image.new('RGBA', (w, h * n))
