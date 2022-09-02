@@ -389,7 +389,7 @@ def analyze(track, callback=None):
     )
 
     # Peak / RMS
-    with Timer('Calculating peak and RMS...', Steps.calc_pr, callback) as t:
+    with Timer('Calculating peak and RMS...', Steps.calc_pr, callback):
         data_rms = rms(data, 1)
         data_total_rms = rms(data.reshape(1, -1), 1)
         data_peak = np.abs(data).max(1)
@@ -405,7 +405,7 @@ def analyze(track, callback=None):
         crest_total_db = db(data_peak.max(), data_total_rms)
 
     # Loudest
-    with Timer('Calculating loudest...', Steps.calc_loud, callback) as t:
+    with Timer('Calculating loudest...', Steps.calc_loud, callback):
         window = fs // 50
         peak = data_peak.max()
         c_max, s_max, ns_cur, ns_max = 0, 0, 0, 0
@@ -432,7 +432,7 @@ def analyze(track, callback=None):
             w_max = (ns - fs // 10, ns)
 
     # True peaks
-    with Timer('Calculating true peaks...', Steps.calc_tp, callback) as t:
+    with Timer('Calculating true peaks...', Steps.calc_tp, callback):
         fir = fir_coeffs()
         fir_phases, fir_size = fir.shape
         d_size = data.itemsize
@@ -455,7 +455,7 @@ def analyze(track, callback=None):
         true_peak_dbtp = db(true_peak, 1.0)
 
     # EBU R.128
-    with Timer('Calculating EBU R 128...', Steps.calc_ebur128, callback) as t:
+    with Timer('Calculating EBU R 128...', Steps.calc_ebur128, callback):
         l_kg = itu1770(data, fs, gated=True)
         steps = int((ns - 3 * fs) / fs) + 1
         stl = np.zeros(steps)
@@ -473,12 +473,12 @@ def analyze(track, callback=None):
         lra = stl_high - stl_low
 
     # PLR
-    with Timer('Calculatin PLR...', Steps.calc_plr, callback) as t:
+    with Timer('Calculatin PLR...', Steps.calc_plr, callback):
         plr_lu = true_peak_dbtp.max() - l_kg
         stplr_lu = db(sttp.max(0), 1.0) - stl
 
     # Spectrum
-    with Timer('Calculating spectrum...', Steps.calc_spec, callback) as t:
+    with Timer('Calculating spectrum...', Steps.calc_spec, callback):
         frames = ns // fs
         wfunc = np.blackman(fs)
         norm_spec = np.zeros((nc, fs))
@@ -492,7 +492,7 @@ def analyze(track, callback=None):
             )
 
     # Allpass
-    with Timer('Calculating allpass...', Steps.calc_ap, callback) as t:
+    with Timer('Calculating allpass...', Steps.calc_ap, callback):
         ap_freqs = np.array([20, 60, 200, 600, 2000, 6000, 20000])
         ap_crest = np.zeros((len(ap_freqs), nc))
         ap_rms = np.zeros((len(ap_freqs), nc))
@@ -506,7 +506,7 @@ def analyze(track, callback=None):
             ap_crest[i] = db(ap_peak[i], ap_rms[i])
 
     # Histogram
-    with Timer('Calculating histogram...', Steps.calc_hist, callback) as t:
+    with Timer('Calculating histogram...', Steps.calc_hist, callback):
         hbits = bits
         if bits > 16:
             hbits = 18
@@ -524,7 +524,7 @@ def analyze(track, callback=None):
             hist_bits *= bits / float(hbits)
 
     # Peak vs RMS
-    with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback) as t:
+    with Timer('Calculating peak vs RMS...', Steps.calc_pvsr, callback):
         n_1s = ns // fs
         peak_1s_dbfs = np.zeros((nc, n_1s))
         rms_1s_dbfs = np.zeros((nc, n_1s))
@@ -538,7 +538,7 @@ def analyze(track, callback=None):
                 crest_1s_db[c][i] = db(a, b)
 
     # DR
-    with Timer('Calculating DR...', Steps.calc_dr, callback) as t:
+    with Timer('Calculating DR...', Steps.calc_dr, callback):
         dr_blocks = int(ns / (3.0 * fs))
         dr_ns = dr_blocks * 3 * fs
         dr_tail = ns - dr_ns
@@ -563,7 +563,7 @@ def analyze(track, callback=None):
         )
         dr = int(round(dr_ch.mean()))
 
-    with Timer('Calculating checksum...', Steps.calc_csum, callback) as t:
+    with Timer('Calculating checksum...', Steps.calc_csum, callback):
         checksum = (raw_data.astype('uint32') ** 2).sum()
 
     #
@@ -663,7 +663,7 @@ def render(
     c_color = ['b', 'r', 'g', 'y', 'c', 'm']
     c_name = ['left', 'right', 'center', 'LFE', 'surr left', 'surr right']
     nc_max = len(c_color)
-    with Timer("Drawing plot...", Steps.draw_plot, callback) as t:
+    with Timer("Drawing plot...", Steps.draw_plot, callback):
         subtitle_analysis = (
             'Crest: %.2f dB,  DR: %d,  L$_K$: %.1f %s,  ' 'LRA: %.1f LU,  PLR: %.1f LU'
         ) % (crest_total_db, dr, l_kg + r128_offset, r128_unit, lra, plr)
@@ -743,7 +743,7 @@ def render(
     true_peak_dbtp = analysis['true_peak_dbtp']
     c_max = analysis['c_max']
     w_max = analysis['w_max']
-    with Timer("Drawing channels...", Steps.draw_ch, callback) as t:
+    with Timer("Drawing channels...", Steps.draw_ch, callback):
         ax_ch = []
         c = 0
         while c < nc and c < nc_max:
@@ -790,7 +790,7 @@ def render(
     # Loudest
     s_max = analysis['s_max']
     ns_max = analysis['ns_max']
-    with Timer("Drawing loudest...", Steps.draw_loud, callback) as t:
+    with Timer("Drawing loudest...", Steps.draw_loud, callback):
         ax_max = subplot(gs[spi + 1, :])
         plot(
             np.arange(*w_max) / float(fs),
@@ -814,7 +814,7 @@ def render(
     # Spectrum
     norm_spec = analysis['norm_spec']
     frames = analysis['frames']
-    with Timer("Drawing spectrum...", Steps.draw_spec, callback) as t:
+    with Timer("Drawing spectrum...", Steps.draw_spec, callback):
         ax_norm = subplot(gs[spi + 2, 0])
         semilogx(
             [0.02, 0.06],
@@ -903,14 +903,13 @@ def render(
         )
         ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
         ax_norm.set_xticklabels([], minor=True)
-        debug(np.arange(-90, -10, 10))
         yticks(np.arange(-90, 0, 10), ('', -80, -70, -60, -50, -40, -30, '', ''))
         axis_defaults(ax_norm)
 
     # Allpass
     ap_freqs = analysis['ap_freqs']
     ap_crest = analysis['ap_crest']
-    with Timer("Drawing allpass...", Steps.draw_ap, callback) as t:
+    with Timer("Drawing allpass...", Steps.draw_ap, callback):
         ax_ap = subplot(gs[spi + 2, 1])
         for c in range(nc):
             semilogx(
@@ -940,7 +939,7 @@ def render(
     hist = analysis['hist']
     hist_bits = analysis['hist_bits']
     hist_title_bits = []
-    with Timer("Drawing histogram...", Steps.draw_hist, callback) as t:
+    with Timer("Drawing histogram...", Steps.draw_hist, callback):
         ax_hist = subplot(gs[spi + 3, 0])
         for c in range(nc):
             new_hist, new_n, new_range = pixelize(
@@ -972,7 +971,7 @@ def render(
     # Peak vs RMS
     rms_1s_dbfs = analysis['rms_1s_dbfs']
     peak_1s_dbfs = analysis['peak_1s_dbfs']
-    with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, callback) as t:
+    with Timer("Drawing peak vs RMS...", Steps.draw_pvsr, callback):
         ax_pr = subplot(gs[spi + 3, 1])
         plot(
             [-50, 0],
@@ -1024,7 +1023,7 @@ def render(
     # Shortterm crest
     crest_1s_db = analysis['crest_1s_db']
     n_1s = analysis['n_1s']
-    with Timer("Drawing short term crest...", Steps.draw_stc, callback) as t:
+    with Timer("Drawing short term crest...", Steps.draw_stc, callback):
         ax_1s = subplot(gs[spi + 4, :])
         for c in range(nc):
             plot(
@@ -1050,7 +1049,7 @@ def render(
     # EBU R 128
     stl = analysis['stl']
     stplr = analysis['stplr_lu']
-    with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, callback) as t:
+    with Timer("Drawing EBU R 128 loudness...", Steps.draw_ebur128, callback):
         ax_ebur128 = subplot(gs[spi + 5, :])
         plot(
             np.arange(stl.size) + 1.5,
@@ -1121,7 +1120,7 @@ def render(
             info_o = (
                 u"Crest = %0.1f dB\nPeak = %0.1f dBFS\nDR = %d,  " u"L$_k$ = %.1f LU"
             ) % (crest_total_db, peak_dbfs.max(), dr, l_kg + lufs_to_lu)
-            text_o = fig_o.text(
+            fig_o.text(
                 482 / w_o,
                 28 / h_o,
                 info_o,
@@ -1166,7 +1165,7 @@ def render(
             overview = None
 
     # Save
-    with Timer("Saving...", Steps.save, callback) as t:
+    with Timer("Saving...", Steps.save, callback):
         plt.figure('detailed')
         detailed = io.BytesIO()
         plt.savefig(detailed, format='png', dpi=DPI, transparent=False)
@@ -1553,10 +1552,10 @@ def run(
         return
     if not header:
         header = "%s" % (track['metadata']['name'])
-    with Timer('Running...', Steps.total, Steps.callback) as t:
-        with Timer('Analyzing...') as ta:
+    with Timer('Running...', Steps.total, Steps.callback):
+        with Timer('Analyzing...'):
             analysis = analyze(track, callback=Steps.callback)
-        with Timer('Rendering...') as tr:
+        with Timer('Rendering...'):
             render_overview = False
             if overviewfile:
                 render_overview = True
