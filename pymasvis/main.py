@@ -903,7 +903,8 @@ def render(
         )
         ax_norm.set_xticklabels([0.05, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7], minor=False)
         ax_norm.set_xticklabels([], minor=True)
-        yticks(np.arange(-90, -10, 10), ('', -80, -70, -60, -50, -40, -30, '', ''))
+        debug(np.arange(-90, -10, 10))
+        yticks(np.arange(-90, 0, 10), ('', -80, -70, -60, -50, -40, -30, '', ''))
         axis_defaults(ax_norm)
 
     # Allpass
@@ -1037,7 +1038,7 @@ def render(
             )
         ylim(0, 30)
         xlim(0, n_1s)
-        yticks([10, 20], (10,))
+        yticks([10, 20], (10, ''))
         ax_1s.yaxis.grid(True, which='major', linestyle=':', color='k', linewidth=0.5)
         title("Short term (1 s) crest factor", fontsize='small', loc='left')
         xlabel('s', fontsize='small')
