@@ -1443,7 +1443,7 @@ def itu1770(data, fs, gated=False):
         ns_gate = int(fs * 0.4)
         ns_step = int((1 - 0.75) * ns_gate)
         steps = int((ns - ns_gate) / (ns_step)) + 1
-        z = np.zeros((nc, steps), dtype=np.float)
+        z = np.zeros((nc, steps), dtype=float)
         for i in range(steps):
             j = i * ns_step
             z[:, i : i + 1] = (data_k[:, j : j + ns_gate] ** 2).mean(1, keepdims=True)
