@@ -30,15 +30,12 @@ import re
 import subprocess
 import sys
 import time
-
-import matplotlib
-import numpy as np
-
-matplotlib.use('AGG')  # noqa
 from os.path import basename
 from subprocess import CalledProcessError
 
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.signal as signal
 from matplotlib import gridspec, rc
 from matplotlib.pyplot import (
@@ -65,6 +62,7 @@ DPI = 72
 DEBUG = False
 R128_OFFSET = 23
 
+matplotlib.use('agg')
 matplotlib.rcParams['font.size'] = 12
 matplotlib.rcParams['legend.fontsize'] = 'large'
 matplotlib.rcParams['figure.titlesize'] = 'medium'
