@@ -1703,7 +1703,7 @@ if __name__ == "__main__":
                     log.debug("Creating destdir %s", args.destdir)
                     os.mkdir(args.destdir)
                 args.overview = os.path.join(args.destdir, args.overview)
-            overviews = {args.overview: reduce(operator.add, overviews.itervalues())}
+            overviews = {args.overview: reduce(operator.add, overviews.values())}
         for overviewfile, images in overviews.items():
             w, h = images[0].size
             n = len(images)
