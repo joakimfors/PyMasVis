@@ -79,7 +79,6 @@ lh = logging.StreamHandler(sys.stdout)
 lh.setFormatter(logging.Formatter("%(message)s"))
 log.addHandler(lh)
 log.setLevel(logging.WARNING)
-overviews = collections.OrderedDict()
 
 
 class Timer:
@@ -1508,6 +1507,7 @@ def run(
     infile,
     outfile=None,
     overviewfile=None,
+    overviews=None,
     fmt='png',
     destdir='',
     update=True,
@@ -1582,7 +1582,7 @@ def run(
     Steps.report()
 
 
-if __name__ == "__main__":
+def main():
     import argparse
     from functools import reduce
 
@@ -1682,6 +1682,7 @@ if __name__ == "__main__":
         if fsenc:
             encoding = fsenc
             break
+    overviews = collections.OrderedDict()
     for infile in infiles:
         outfile = None
         header = None
@@ -1690,6 +1691,7 @@ if __name__ == "__main__":
             infile,
             outfile,
             args.overview,
+            overviews,
             args.format,
             args.destdir,
             args.update,
@@ -1716,3 +1718,7 @@ if __name__ == "__main__":
                 out.save(overviewfile, 'PNG', optimize=True)
             elif args.format == 'jpg':
                 out.save(overviewfile, 'JPEG', quality=80, optimize=True)
+
+
+if __name__ == "__main__":
+    main()
