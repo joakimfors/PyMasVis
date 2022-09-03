@@ -4,3 +4,5 @@ build/
 dist/
 tmp/
 test/*-pymasvis.*
+.venv/
+.vscode/
