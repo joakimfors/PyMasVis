@@ -22,6 +22,9 @@ flake8 = "^5.0.4"
 autoflake = "^1.5.3"
 mypy = "^0.971"
 
+[tool.poetry.scripts]
+pymasvis = "pymasvis.main:main"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
